@@ -76,6 +76,7 @@
           <el-menu-item index="products"><i class="el-icon-goods"></i>商品管理</el-menu-item>
           <el-menu-item index="purchase-orders"><i class="el-icon-document-copy"></i>采购单管理</el-menu-item>
           <el-menu-item index="sales-orders"><i class="el-icon-sold-out"></i>销售单管理</el-menu-item>
+          <el-menu-item index="finance"><i class="el-icon-coin"></i>财务管理</el-menu-item>
           <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
           <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
         </el-menu>
@@ -305,6 +306,221 @@
           <div style="margin-top:16px;text-align:right">
             <el-pagination :total="soTotal" :page-size="20" :current-page="soPage" layout="total,prev,pager,next" @current-change="p=>{soPage=p;fetchSalesOrders()}"></el-pagination>
           </div>
+        </div>
+
+        <!-- Finance -->
+        <div v-if="activeMenu === 'finance'">
+          <div class="page-title">💰 财务管理</div>
+          <el-tabs v-model="financeTab">
+            <el-tab-pane label="财务概览" name="summary">
+              <el-row :gutter="20" style="margin-bottom:20px">
+                <el-col :span="6">
+                  <el-card shadow="hover">
+                    <div style="text-align:center">
+                      <div style="font-size:28px;font-weight:bold;color:#f56c6c">¥{{ financeSummary.accounts_payable ? financeSummary.accounts_payable.pending_amount.toFixed(2) : '0.00' }}</div>
+                      <div style="font-size:13px;color:#909399;margin-top:8px">待付应付账款</div>
+                    </div>
+                  </el-card>
+                </el-col>
+                <el-col :span="6">
+                  <el-card shadow="hover">
+                    <div style="text-align:center">
+                      <div style="font-size:28px;font-weight:bold;color:#67c23a">¥{{ financeSummary.accounts_receivable ? financeSummary.accounts_receivable.pending_amount.toFixed(2) : '0.00' }}</div>
+                      <div style="font-size:13px;color:#909399;margin-top:8px">待收应收账款</div>
+                    </div>
+                  </el-card>
+                </el-col>
+                <el-col :span="6">
+                  <el-card shadow="hover">
+                    <div style="text-align:center">
+                      <div style="font-size:28px;font-weight:bold;color:#e6a23c">¥{{ financeSummary.total_expense ? financeSummary.total_expense.toFixed(2) : '0.00' }}</div>
+                      <div style="font-size:13px;color:#909399;margin-top:8px">总费用支出</div>
+                    </div>
+                  </el-card>
+                </el-col>
+                <el-col :span="6">
+                  <el-card shadow="hover">
+                    <div style="text-align:center">
+                      <div style="font-size:28px;font-weight:bold;color:#409eff">{{ financeSummary.accounts_payable ? financeSummary.accounts_payable.count : 0 }}</div>
+                      <div style="font-size:13px;color:#909399;margin-top:8px">应付账款笔数</div>
+                    </div>
+                  </el-card>
+                </el-col>
+              </el-row>
+              <el-card>
+                <div slot="header"><span>本年收支趋势</span></div>
+                <div v-if="financeMonthlyData.length === 0" style="text-align:center;color:#909399;padding:20px">暂无数据</div>
+                <div v-else>
+                  <el-table :data="financeMonthlyData" stripe size="small">
+                    <el-table-column prop="month" label="月份" width="120">
+                      <template slot-scope="s">{{ s.row.month }}月</template>
+                    </el-table-column>
+                    <el-table-column prop="income" label="收入" width="200">
+                      <template slot-scope="s">¥{{ s.row.income.toFixed(2) }}</template>
+                    </el-table-column>
+                    <el-table-column prop="expense" label="支出" width="200">
+                      <template slot-scope="s">¥{{ s.row.expense.toFixed(2) }}</template>
+                    </el-table-column>
+                    <el-table-column label="净收入">
+                      <template slot-scope="s">
+                        <span :style="{color: (s.row.income - s.row.expense) >= 0 ? '#67c23a' : '#f56c6c', fontWeight:'bold'}">
+                          ¥{{ (s.row.income - s.row.expense).toFixed(2) }}
+                        </span>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+              </el-card>
+            </el-tab-pane>
+            <el-tab-pane label="应付账款" name="payable">
+              <div class="search-bar">
+                <el-select v-model="apStatusFilter" placeholder="状态筛选" style="width:140px" size="small" clearable @change="fetchAccountsPayable">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option label="待付款" value="pending"></el-option>
+                  <el-option label="部分付款" value="partial"></el-option>
+                  <el-option label="已结清" value="paid"></el-option>
+                </el-select>
+                <el-input v-model="apKeyword" placeholder="搜索单号/供应商" style="width:260px" size="small" clearable @clear="fetchAccountsPayable" @keyup.enter="fetchAccountsPayable"></el-input>
+                <el-button type="primary" size="small" @click="fetchAccountsPayable">搜索</el-button>
+              </div>
+              <el-table :data="apList" stripe v-loading="apLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="order_no" label="采购单号" width="160"></el-table-column>
+                <el-table-column prop="supplier.name" label="供应商" min-width="150"></el-table-column>
+                <el-table-column prop="total_amount" label="总金额" width="110">
+                  <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="paid_amount" label="已付" width="110">
+                  <template slot-scope="s">¥{{ s.row.paid_amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="due_amount" label="未付" width="110">
+                  <template slot-scope="s">
+                    <span :style="{color:s.row.due_amount>0?'#f56c6c':'#67c23a',fontWeight:'bold'}">¥{{ s.row.due_amount.toFixed(2) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100">
+                  <template slot-scope="s">
+                    <el-tag :type="s.row.status==='paid'?'success':s.row.status==='partial'?'warning':'danger'" size="small">
+                      {{ s.row.status==='paid'?'已结清':s.row.status==='partial'?'部分付款':'待付款' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" fixed="right">
+                  <template slot-scope="s">
+                    <el-button size="mini" type="success" v-if="s.row.status!='paid'" @click="openPayDialog(s.row)">付款</el-button>
+                    <el-tag v-else size="small" type="success">已结清</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="apTotal" :page-size="20" :current-page="apPage" layout="total,prev,pager,next" @current-change="p=>{apPage=p;fetchAccountsPayable()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="应收账款" name="receivable">
+              <div class="search-bar">
+                <el-select v-model="arStatusFilter" placeholder="状态筛选" style="width:140px" size="small" clearable @change="fetchAccountsReceivable">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option label="待收款" value="pending"></el-option>
+                  <el-option label="部分收款" value="partial"></el-option>
+                  <el-option label="已结清" value="received"></el-option>
+                </el-select>
+                <el-input v-model="arKeyword" placeholder="搜索单号/客户" style="width:260px" size="small" clearable @clear="fetchAccountsReceivable" @keyup.enter="fetchAccountsReceivable"></el-input>
+                <el-button type="primary" size="small" @click="fetchAccountsReceivable">搜索</el-button>
+              </div>
+              <el-table :data="arList" stripe v-loading="arLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="order_no" label="销售单号" width="160"></el-table-column>
+                <el-table-column prop="customer.name" label="客户" min-width="150"></el-table-column>
+                <el-table-column prop="total_amount" label="总金额" width="110">
+                  <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="received_amount" label="已收" width="110">
+                  <template slot-scope="s">¥{{ s.row.received_amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="due_amount" label="未收" width="110">
+                  <template slot-scope="s">
+                    <span :style="{color:s.row.due_amount>0?'#f56c6c':'#67c23a',fontWeight:'bold'}">¥{{ s.row.due_amount.toFixed(2) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="100">
+                  <template slot-scope="s">
+                    <el-tag :type="s.row.status==='received'?'success':s.row.status==='partial'?'warning':'danger'" size="small">
+                      {{ s.row.status==='received'?'已结清':s.row.status==='partial'?'部分收款':'待收款' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" fixed="right">
+                  <template slot-scope="s">
+                    <el-button size="mini" type="success" v-if="s.row.status!='received'" @click="openReceiveDialog(s.row)">收款</el-button>
+                    <el-tag v-else size="small" type="success">已结清</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="arTotal" :page-size="20" :current-page="arPage" layout="total,prev,pager,next" @current-change="p=>{arPage=p;fetchAccountsReceivable()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="费用管理" name="expenses">
+              <div class="search-bar">
+                <el-select v-model="expenseCategoryFilter" placeholder="费用分类" style="width:140px" size="small" clearable @change="fetchExpenses">
+                  <el-option v-for="c in expenseCategories" :key="c" :label="c" :value="c"></el-option>
+                </el-select>
+                <el-button type="success" size="small" @click="openExpenseDialog()">+ 新增费用</el-button>
+              </div>
+              <el-table :data="expenseList" stripe v-loading="expenseLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="category" label="分类" width="100">
+                  <template slot-scope="s"><el-tag size="small">{{ s.row.category }}</el-tag></template>
+                </el-table-column>
+                <el-table-column prop="amount" label="金额" width="120">
+                  <template slot-scope="s">¥{{ s.row.amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="description" label="说明" min-width="200"></el-table-column>
+                <el-table-column prop="occurred_at" label="发生日期" width="120">
+                  <template slot-scope="s">{{ formatDateShort(s.row.occurred_at) }}</template>
+                </el-table-column>
+                <el-table-column prop="creator.real_name" label="录入人" width="100"></el-table-column>
+                <el-table-column prop="created_at" label="录入时间" width="140">
+                  <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+                </el-table-column>
+                <el-table-column label="操作" width="120" fixed="right">
+                  <template slot-scope="s">
+                    <el-button size="mini" @click="openExpenseDialog(s.row)">编辑</el-button>
+                    <el-button size="mini" type="danger" @click="deleteExpense(s.row.id)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="expenseTotal" :page-size="20" :current-page="expensePage" layout="total,prev,pager,next" @current-change="p=>{expensePage=p;fetchExpenses()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="收付款记录" name="payments">
+              <div class="search-bar">
+                <el-select v-model="paymentTypeFilter" placeholder="类型" style="width:140px" size="small" clearable @change="fetchPayments">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option label="付款" value="pay"></el-option>
+                  <el-option label="收款" value="receive"></el-option>
+                </el-select>
+              </div>
+              <el-table :data="paymentList" stripe v-loading="paymentLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="type" label="类型" width="80">
+                  <template slot-scope="s">
+                    <el-tag :type="s.row.type==='pay'?'danger':'success'" size="small">{{ s.row.type==='pay'?'付款':'收款' }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="amount" label="金额" width="120">
+                  <template slot-scope="s">¥{{ s.row.amount.toFixed(2) }}</template>
+                </el-table-column>
+                <el-table-column prop="payment_method" label="支付方式" width="100"></el-table-column>
+                <el-table-column prop="reference_no" label="凭证号" width="140"></el-table-column>
+                <el-table-column prop="remark" label="备注" min-width="160"></el-table-column>
+                <el-table-column prop="operator.real_name" label="操作人" width="100"></el-table-column>
+                <el-table-column prop="operated_at" label="操作时间" width="140">
+                  <template slot-scope="s">{{ formatDate(s.row.operated_at) }}</template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="paymentTotal" :page-size="20" :current-page="paymentPage" layout="total,prev,pager,next" @current-change="p=>{paymentPage=p;fetchPayments()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
 
         <!-- Inventory -->
@@ -664,6 +880,54 @@
       <el-button type="primary" @click="saveSalesOrder" :loading="soSaving" size="small">保存</el-button>
     </div>
   </el-dialog>
+
+  <!-- Payment Dialog -->
+  <el-dialog :title="paymentDialogTitle" :visible.sync="paymentDialogVisible" width="450px" :close-on-click-modal="false">
+    <el-form :model="paymentForm" label-width="100px" size="small">
+      <el-form-item label="金额" required>
+        <el-input-number v-model="paymentForm.amount" :min="0.01" :precision="2" style="width:100%"></el-input-number>
+      </el-form-item>
+      <el-form-item label="支付方式">
+        <el-select v-model="paymentForm.payment_method" style="width:100%">
+          <el-option v-for="m in paymentMethods" :key="m" :label="m" :value="m"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="凭证号">
+        <el-input v-model="paymentForm.reference_no" placeholder="银行流水号/凭证号"></el-input>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="paymentForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="paymentDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="submitPayment" :loading="paymentSaving" size="small">确认</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Expense Dialog -->
+  <el-dialog :title="expenseForm.id?'编辑费用':'新增费用'" :visible.sync="expenseDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="expenseForm" label-width="100px" size="small">
+      <el-form-item label="分类" required>
+        <el-select v-model="expenseForm.category" style="width:100%">
+          <el-option v-for="c in expenseCategories" :key="c" :label="c" :value="c"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="金额" required>
+        <el-input-number v-model="expenseForm.amount" :min="0.01" :precision="2" style="width:100%"></el-input-number>
+      </el-form-item>
+      <el-form-item label="说明">
+        <el-input v-model="expenseForm.description" type="textarea" :rows="2" placeholder="费用说明"></el-input>
+      </el-form-item>
+      <el-form-item label="发生日期">
+        <el-date-picker v-model="expenseForm.occurred_at" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width:100%"></el-date-picker>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="expenseDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveExpense" :loading="expenseSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
   <!-- User Dialog -->
   <el-dialog :title="userForm.id?'编辑用户':'新增用户'" :visible.sync="userDialogVisible" width="450px" :close-on-click-modal="false">
     <el-form :model="userForm" label-width="100px" size="small">
@@ -822,6 +1086,54 @@ new Vue({
       changePasswordForm: {old_password:'', new_password:''},
       changePasswordLoading: false,
 
+      // Finance
+      financeTab: 'summary',
+      financeSummary: {},
+      financeMonthlyData: [],
+
+      // Accounts Payable
+      apList: [],
+      apTotal: 0,
+      apPage: 1,
+      apKeyword: '',
+      apStatusFilter: '',
+      apLoading: false,
+
+      // Accounts Receivable
+      arList: [],
+      arTotal: 0,
+      arPage: 1,
+      arKeyword: '',
+      arStatusFilter: '',
+      arLoading: false,
+
+      // Payment Dialog
+      paymentDialogVisible: false,
+      paymentDialogTitle: '付款',
+      paymentForm: {},
+      paymentSaving: false,
+      paymentMethods: [],
+      paymentCurrentPayable: null,
+      paymentCurrentReceivable: null,
+
+      // Expenses
+      expenseList: [],
+      expenseTotal: 0,
+      expensePage: 1,
+      expenseCategoryFilter: '',
+      expenseCategories: [],
+      expenseLoading: false,
+      expenseDialogVisible: false,
+      expenseForm: {},
+      expenseSaving: false,
+
+      // Payments
+      paymentList: [],
+      paymentTotal: 0,
+      paymentPage: 1,
+      paymentTypeFilter: '',
+      paymentLoading: false,
+
       // Inventory
       inventoryTab: 'list',
       invList: [],
@@ -882,6 +1194,7 @@ new Vue({
       else if (index === 'purchase-orders') this.fetchPurchaseOrders();
       else if (index === 'sales-orders') this.fetchSalesOrders();
       else if (index === 'users') this.fetchUsers();
+      else if (index === 'finance') this.fetchFinanceSummary();
       else if (index === 'inventory') this.fetchInventories();
     },
 
@@ -1354,6 +1667,143 @@ new Vue({
       this.changePasswordLoading = false;
     },
 
+    // === FINANCE ===
+    async fetchFinanceSummary() {
+      try {
+        const res = await api.get('/finance/summary');
+        this.financeSummary = res.data.data;
+        this.financeMonthlyData = res.data.data.monthly_data || [];
+      } catch (e) { this.$message.error('获取财务概览失败'); }
+    },
+    async fetchAccountsPayable() {
+      this.apLoading = true;
+      try {
+        const params = {page:this.apPage, page_size:20, keyword:this.apKeyword};
+        if (this.apStatusFilter) params.status = this.apStatusFilter;
+        const res = await api.get('/finance/payable', {params});
+        this.apList = res.data.data;
+        this.apTotal = res.data.total;
+      } catch (e) { this.$message.error('获取应付账款失败'); }
+      this.apLoading = false;
+    },
+    async fetchAccountsReceivable() {
+      this.arLoading = true;
+      try {
+        const params = {page:this.arPage, page_size:20, keyword:this.arKeyword};
+        if (this.arStatusFilter) params.status = this.arStatusFilter;
+        const res = await api.get('/finance/receivable', {params});
+        this.arList = res.data.data;
+        this.arTotal = res.data.total;
+      } catch (e) { this.$message.error('获取应收账款失败'); }
+      this.arLoading = false;
+    },
+    async fetchPaymentMethods() {
+      try {
+        const res = await api.get('/finance/payment-methods');
+        this.paymentMethods = res.data.data;
+      } catch (e) {}
+    },
+    async fetchExpenseCategories() {
+      try {
+        const res = await api.get('/finance/expense-categories');
+        this.expenseCategories = res.data.data;
+      } catch (e) {}
+    },
+    openPayDialog(row) {
+      this.paymentCurrentPayable = row;
+      this.paymentCurrentReceivable = null;
+      this.paymentDialogTitle = '付款 - ' + row.order_no;
+      this.paymentForm = {amount: row.due_amount, payment_method: '银行转账', reference_no: '', remark: ''};
+      this.paymentDialogVisible = true;
+      this.fetchPaymentMethods();
+    },
+    openReceiveDialog(row) {
+      this.paymentCurrentReceivable = row;
+      this.paymentCurrentPayable = null;
+      this.paymentDialogTitle = '收款 - ' + row.order_no;
+      this.paymentForm = {amount: row.due_amount, payment_method: '银行转账', reference_no: '', remark: ''};
+      this.paymentDialogVisible = true;
+      this.fetchPaymentMethods();
+    },
+    async submitPayment() {
+      if (!this.paymentForm.amount || this.paymentForm.amount <= 0) {
+        return this.$message.warning('请输入有效金额');
+      }
+      this.paymentSaving = true;
+      try {
+        if (this.paymentCurrentPayable) {
+          await api.post('/finance/payable/'+this.paymentCurrentPayable.id+'/pay', this.paymentForm);
+          this.$message.success('付款成功');
+          this.fetchAccountsPayable();
+        } else if (this.paymentCurrentReceivable) {
+          await api.post('/finance/receivable/'+this.paymentCurrentReceivable.id+'/receive', this.paymentForm);
+          this.$message.success('收款成功');
+          this.fetchAccountsReceivable();
+        }
+        this.paymentDialogVisible = false;
+        this.fetchFinanceSummary();
+      } catch (e) { this.$message.error(e.response?.data?.error || '操作失败'); }
+      this.paymentSaving = false;
+    },
+    async fetchExpenses() {
+      this.expenseLoading = true;
+      try {
+        const params = {page:this.expensePage, page_size:20};
+        if (this.expenseCategoryFilter) params.category = this.expenseCategoryFilter;
+        const res = await api.get('/finance/expenses', {params});
+        this.expenseList = res.data.data;
+        this.expenseTotal = res.data.total;
+      } catch (e) { this.$message.error('获取费用记录失败'); }
+      this.expenseLoading = false;
+    },
+    openExpenseDialog(row) {
+      this.fetchExpenseCategories();
+      if (row) {
+        this.expenseForm = {id:row.id, category:row.category, amount:row.amount, description:row.description, occurred_at:row.occurred_at};
+      } else {
+        this.expenseForm = {category:'', amount:0, description:'', occurred_at:''};
+      }
+      this.expenseDialogVisible = true;
+    },
+    async saveExpense() {
+      if (!this.expenseForm.category) return this.$message.warning('请选择分类');
+      if (!this.expenseForm.amount || this.expenseForm.amount <= 0) return this.$message.warning('请输入有效金额');
+      this.expenseSaving = true;
+      try {
+        if (this.expenseForm.id) {
+          await api.put('/finance/expenses/'+this.expenseForm.id, this.expenseForm);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/finance/expenses', this.expenseForm);
+          this.$message.success('创建成功');
+        }
+        this.expenseDialogVisible = false;
+        this.fetchExpenses();
+        this.fetchFinanceSummary();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.expenseSaving = false;
+    },
+    async deleteExpense(id) {
+      try {
+        await this.$confirm('确认删除该费用记录？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/finance/expenses/'+id);
+        this.$message.success('删除成功');
+        this.fetchExpenses();
+        this.fetchFinanceSummary();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+    async fetchPayments() {
+      this.paymentLoading = true;
+      try {
+        const params = {page:this.paymentPage, page_size:20};
+        if (this.paymentTypeFilter) params.type = this.paymentTypeFilter;
+        const res = await api.get('/finance/payments', {params});
+        this.paymentList = res.data.data;
+        this.paymentTotal = res.data.total;
+      } catch (e) { this.$message.error('获取收付款记录失败'); }
+      this.paymentLoading = false;
+    },
+
     // === INVENTORY ===
     async fetchInventories() {
       this.invLoading = true;
@@ -1389,6 +1839,11 @@ new Vue({
       if (!dt) return '-';
       const d = new Date(dt);
       return d.toLocaleString('zh-CN', {hour12:false});
+    },
+    formatDateShort(dt) {
+      if (!dt) return '-';
+      const d = new Date(dt);
+      return d.toLocaleDateString('zh-CN');
     },
     statusLabel(s) {
       const map = {draft:'草稿', approved:'已审核', received:'已入库', cancelled:'已取消'};

@@ -293,6 +293,9 @@ func DeliverSalesOrder(c *gin.Context) {
 
 	tx.Commit()
 
+	// Generate account receivable
+	GenerateAccountReceivable(order)
+
 	c.JSON(http.StatusOK, gin.H{"data": order, "message": "出库成功"})
 }
 

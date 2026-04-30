@@ -82,6 +82,30 @@ func Setup() *gin.Engine {
 
 			// Dashboard
 			auth.GET("/dashboard/stats", handlers.GetDashboardStats)
+
+			// Finance - Accounts Payable
+			auth.GET("/finance/payable", handlers.GetAccountsPayable)
+			auth.POST("/finance/payable/:id/pay", handlers.PayAccountPayable)
+
+			// Finance - Accounts Receivable
+			auth.GET("/finance/receivable", handlers.GetAccountsReceivable)
+			auth.POST("/finance/receivable/:id/receive", handlers.ReceiveAccountReceivable)
+
+			// Finance - Expenses
+			auth.GET("/finance/expenses", handlers.GetExpenses)
+			auth.POST("/finance/expenses", handlers.CreateExpense)
+			auth.PUT("/finance/expenses/:id", handlers.UpdateExpense)
+			auth.DELETE("/finance/expenses/:id", handlers.DeleteExpense)
+
+			// Finance - Payment Records
+			auth.GET("/finance/payments", handlers.GetPaymentRecords)
+
+			// Finance - Summary
+			auth.GET("/finance/summary", handlers.GetFinancialSummary)
+
+			// Finance - Options
+			auth.GET("/finance/payment-methods", handlers.GetPaymentMethods)
+			auth.GET("/finance/expense-categories", handlers.GetExpenseCategories)
 		}
 	}
 

@@ -279,6 +279,9 @@ func ReceiveOrder(c *gin.Context) {
 
 	tx.Commit()
 
+	// Generate account payable
+	GenerateAccountPayable(order)
+
 	c.JSON(http.StatusOK, gin.H{"data": order, "message": "入库成功"})
 }
 
