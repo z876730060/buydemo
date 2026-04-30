@@ -40,6 +40,9 @@ func Init(cfg *config.Config) {
 		&models.PurchaseOrderItem{},
 		&models.Inventory{},
 		&models.InventoryLog{},
+		&models.Customer{},
+		&models.SalesOrder{},
+		&models.SalesOrderItem{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)

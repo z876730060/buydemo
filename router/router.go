@@ -51,6 +51,23 @@ func Setup() *gin.Engine {
 			auth.POST("/purchase-orders/:id/receive", handlers.ReceiveOrder)
 			auth.POST("/purchase-orders/:id/cancel", handlers.CancelOrder)
 
+			// Customers
+			auth.GET("/customers", handlers.GetCustomers)
+			auth.GET("/customers/all", handlers.GetAllCustomers)
+			auth.GET("/customers/:id", handlers.GetCustomer)
+			auth.POST("/customers", handlers.CreateCustomer)
+			auth.PUT("/customers/:id", handlers.UpdateCustomer)
+			auth.DELETE("/customers/:id", handlers.DeleteCustomer)
+
+			// Sales Orders
+			auth.GET("/sales-orders", handlers.GetSalesOrders)
+			auth.GET("/sales-orders/:id", handlers.GetSalesOrder)
+			auth.POST("/sales-orders", handlers.CreateSalesOrder)
+			auth.PUT("/sales-orders/:id", handlers.UpdateSalesOrder)
+			auth.POST("/sales-orders/:id/approve", handlers.ApproveSalesOrder)
+			auth.POST("/sales-orders/:id/deliver", handlers.DeliverSalesOrder)
+			auth.POST("/sales-orders/:id/cancel", handlers.CancelSalesOrder)
+
 			// Inventory
 			auth.GET("/inventories", handlers.GetInventories)
 			auth.GET("/inventories/logs", handlers.GetInventoryLogs)

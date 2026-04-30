@@ -90,6 +90,10 @@ func GetDashboardStats(c *gin.Context) {
 	var supplierCount int64
 	database.DB.Model(&models.Supplier{}).Where("status = 1").Count(&supplierCount)
 
+	// Total customers
+	var customerCount int64
+	database.DB.Model(&models.Customer{}).Where("status = 1").Count(&customerCount)
+
 	// Total products
 	var productCount int64
 	database.DB.Model(&models.Product{}).Where("status = 1").Count(&productCount)
@@ -117,14 +121,28 @@ func GetDashboardStats(c *gin.Context) {
 		Group("status").
 		Find(&statusCounts)
 
+	// Sales orders by status
+	var salesStatusCounts []StatusCount
+	database.DB.Model(&models.SalesOrder{}).
+		Select("status, count(*) as count").
+		Group("status").
+		Find(&salesStatusCounts)
+
+	// Today's sales orders
+	var todaySalesCount int64
+	database.DB.Model(&models.SalesOrder{}).Where("created_at >= date('now')").Count(&todaySalesCount)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
-			"supplier_count":    supplierCount,
-			"product_count":     productCount,
-			"today_order_count": todayOrderCount,
-			"low_stock_count":   lowStockCount,
-			"out_of_stock_count": outOfStockCount,
-			"order_status":      statusCounts,
+			"supplier_count":      supplierCount,
+			"customer_count":      customerCount,
+			"product_count":       productCount,
+			"today_order_count":   todayOrderCount,
+			"today_sales_count":   todaySalesCount,
+			"low_stock_count":     lowStockCount,
+			"out_of_stock_count":  outOfStockCount,
+			"order_status":        statusCounts,
+			"sales_order_status":  salesStatusCounts,
 		},
 	})
 }

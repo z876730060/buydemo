@@ -71,9 +71,11 @@
       <el-aside width="200px" class="no-print">
         <el-menu :default-active="activeMenu" background-color="#304156" text-color="#bfcbd9" active-text-color="#409eff" @select="handleMenuSelect">
           <el-menu-item index="dashboard"><i class="el-icon-s-data"></i>仪表盘</el-menu-item>
+          <el-menu-item index="customers"><i class="el-icon-s-custom"></i>客户管理</el-menu-item>
           <el-menu-item index="suppliers"><i class="el-icon-s-hop"></i>供应商管理</el-menu-item>
           <el-menu-item index="products"><i class="el-icon-goods"></i>商品管理</el-menu-item>
           <el-menu-item index="purchase-orders"><i class="el-icon-document-copy"></i>采购单管理</el-menu-item>
+          <el-menu-item index="sales-orders"><i class="el-icon-sold-out"></i>销售单管理</el-menu-item>
           <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
           <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
         </el-menu>
@@ -86,22 +88,39 @@
           <el-row :gutter="20" style="margin-bottom:20px">
             <el-col :span="4" v-for="(stat, idx) in dashboardStats" :key="idx">
               <el-card class="stat-card" shadow="hover">
-                <div class="stat-number">{{ stat.value }}</div>
+                <div class="stat-number" :style="{color: stat.color || '#409eff'}">{{ stat.value }}</div>
                 <div class="stat-label">{{ stat.label }}</div>
               </el-card>
             </el-col>
           </el-row>
-          <el-card>
-            <div slot="header"><span>采购单状态分布</span></div>
-            <el-table :data="orderStatusData" stripe size="small" empty-text="暂无数据">
-              <el-table-column prop="status" label="状态" width="200">
-                <template slot-scope="s">
-                  <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="count" label="数量" width="200"></el-table-column>
-            </el-table>
-          </el-card>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-card>
+                <div slot="header"><span>采购单状态分布</span></div>
+                <el-table :data="orderStatusData" stripe size="small" empty-text="暂无数据">
+                  <el-table-column prop="status" label="状态" width="200">
+                    <template slot-scope="s">
+                      <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="count" label="数量" width="200"></el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+            <el-col :span="12">
+              <el-card>
+                <div slot="header"><span>销售单状态分布</span></div>
+                <el-table :data="salesOrderStatusData" stripe size="small" empty-text="暂无数据">
+                  <el-table-column prop="status" label="状态" width="200">
+                    <template slot-scope="s">
+                      <el-tag :type="soStatusTagType(s.row.status)" size="small">{{ soStatusLabel(s.row.status) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="count" label="数量" width="200"></el-table-column>
+                </el-table>
+              </el-card>
+            </el-col>
+          </el-row>
         </div>
 
         <!-- Suppliers -->
@@ -131,6 +150,38 @@
           </el-table>
           <div style="margin-top:16px;text-align:right">
             <el-pagination :total="supplierTotal" :page-size="20" :current-page="supplierPage" layout="total,prev,pager,next" @current-change="p=>{supplierPage=p;fetchSuppliers()}"></el-pagination>
+          </div>
+        </div>
+
+        </div>
+
+        <!-- Customers -->
+        <div v-if="activeMenu === 'customers'">
+          <div class="page-title">👥 客户管理</div>
+          <div class="search-bar">
+            <el-input v-model="customerKeyword" placeholder="搜索编码/名称/联系人" style="width:260px" size="small" clearable @clear="fetchCustomers" @keyup.enter="fetchCustomers"></el-input>
+            <el-button type="primary" size="small" @click="fetchCustomers">搜索</el-button>
+            <el-button type="success" size="small" @click="openCustomerDialog()">+ 新增客户</el-button>
+          </div>
+          <el-table :data="customerList" stripe v-loading="customerLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="code" label="编码" width="120"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="contact_person" label="联系人" width="120"></el-table-column>
+            <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="s.row.status===1?'success':'danger'" size="small">{{ s.row.status===1?'启用':'禁用' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openCustomerDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" @click="deleteCustomer(s.row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="customerTotal" :page-size="20" :current-page="customerPage" layout="total,prev,pager,next" @current-change="p=>{customerPage=p;fetchCustomers()}"></el-pagination>
           </div>
         </div>
 
@@ -210,6 +261,52 @@
           </div>
         </div>
 
+        </div>
+
+        <!-- Sales Orders -->
+        <div v-if="activeMenu === 'sales-orders'">
+          <div class="page-title">📦 销售单管理</div>
+          <div class="search-bar">
+            <el-input v-model="soKeyword" placeholder="搜索单号/客户" style="width:260px" size="small" clearable @clear="fetchSalesOrders" @keyup.enter="fetchSalesOrders"></el-input>
+            <el-select v-model="soStatusFilter" placeholder="状态筛选" style="width:140px" size="small" clearable @change="fetchSalesOrders">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="草稿" value="draft"></el-option>
+              <el-option label="已审核" value="approved"></el-option>
+              <el-option label="已出库" value="delivered"></el-option>
+              <el-option label="已取消" value="cancelled"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" @click="fetchSalesOrders">搜索</el-button>
+            <el-button type="success" size="small" @click="openSalesOrderDialog()">+ 新建销售单</el-button>
+          </div>
+          <el-table :data="soList" stripe v-loading="soLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="order_no" label="销售单号" width="160"></el-table-column>
+            <el-table-column prop="customer.name" label="客户" min-width="150"></el-table-column>
+            <el-table-column prop="total_amount" label="总金额" width="120">
+              <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template slot-scope="s">
+                <el-tag :type="soStatusTagType(s.row.status)" size="small">{{ soStatusLabel(s.row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160">
+              <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="240" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="viewSalesOrder(s.row)">详情</el-button>
+                <el-button size="mini" type="primary" v-if="s.row.status==='draft'" @click="editSalesOrder(s.row)">编辑</el-button>
+                <el-button size="mini" type="warning" v-if="s.row.status==='draft'" @click="approveSalesOrder(s.row.id)">审核</el-button>
+                <el-button size="mini" type="success" v-if="s.row.status==='approved'" @click="deliverSalesOrder(s.row.id)">出库</el-button>
+                <el-button size="mini" type="danger" v-if="s.row.status==='draft'||s.row.status==='approved'" @click="cancelSalesOrder(s.row.id)">取消</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="soTotal" :page-size="20" :current-page="soPage" layout="total,prev,pager,next" @current-change="p=>{soPage=p;fetchSalesOrders()}"></el-pagination>
+          </div>
+        </div>
+
         <!-- Inventory -->
         <div v-if="activeMenu === 'inventory'">
           <div class="page-title">📊 库存管理</div>
@@ -257,7 +354,7 @@
                 <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
                 <el-table-column prop="balance" label="结存" width="100"></el-table-column>
                 <el-table-column prop="reference_type" label="来源" width="100">
-                  <template slot-scope="s">{{ s.row.reference_type==='purchase'?'采购入库':'调整' }}</template>
+                  <template slot-scope="s">{{ s.row.reference_type==='purchase'?'采购入库':s.row.reference_type==='sales'?'销售出库':'调整' }}</template>
                 </el-table-column>
                 <el-table-column prop="remark" label="备注" min-width="160"></el-table-column>
                 <el-table-column prop="created_at" label="时间" width="160">
@@ -327,6 +424,34 @@
     <div slot="footer">
       <el-button @click="supplierDialogVisible=false" size="small">取消</el-button>
       <el-button type="primary" @click="saveSupplier" :loading="supplierSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Customer Dialog -->
+  <el-dialog :title="customerForm.id?'编辑客户':'新增客户'" :visible.sync="customerDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="customerForm" label-width="100px" size="small">
+      <el-form-item label="编码" required>
+        <el-input v-model="customerForm.code" placeholder="客户编码"></el-input>
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="customerForm.name" placeholder="客户名称"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人">
+        <el-input v-model="customerForm.contact_person"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话">
+        <el-input v-model="customerForm.phone"></el-input>
+      </el-form-item>
+      <el-form-item label="地址">
+        <el-input v-model="customerForm.address" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="customerForm.statusBool" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="customerDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveCustomer" :loading="customerSaving" size="small">保存</el-button>
     </div>
   </el-dialog>
 
@@ -454,6 +579,91 @@
       <el-button type="primary" @click="saveOrder" :loading="orderSaving" size="small">保存</el-button>
     </div>
   </el-dialog>
+
+  <!-- Sales Order Detail Dialog -->
+  <el-dialog title="销售单详情" :visible.sync="soDetailVisible" width="700px" :close-on-click-modal="false">
+    <div v-if="soDetail">
+      <el-descriptions :column="2" border size="small">
+        <el-descriptions-item label="销售单号">{{ soDetail.order_no }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="soStatusTagType(soDetail.status)" size="small">{{ soStatusLabel(soDetail.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="客户">{{ soDetail.customer.name }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">¥{{ soDetail.total_amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ soDetail.creator ? soDetail.creator.real_name || soDetail.creator.username : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDate(soDetail.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="审核时间" v-if="soDetail.approved_at">{{ formatDate(soDetail.approved_at) }}</el-descriptions-item>
+        <el-descriptions-item label="出库时间" v-if="soDetail.delivered_at">{{ formatDate(soDetail.delivered_at) }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ soDetail.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <h4 style="margin:16px 0 8px">销售明细</h4>
+      <el-table :data="soDetail.items" border size="small">
+        <el-table-column prop="product.name" label="商品" min-width="120"></el-table-column>
+        <el-table-column prop="product.spec" label="规格" width="100"></el-table-column>
+        <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+        <el-table-column prop="unit_price" label="单价" width="100">
+          <template slot-scope="s">¥{{ s.row.unit_price.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" label="金额" width="100">
+          <template slot-scope="s">¥{{ s.row.amount.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="delivered_qty" label="已出库" width="80"></el-table-column>
+      </el-table>
+    </div>
+    <div slot="footer">
+      <el-button @click="soDetailVisible=false" size="small">关闭</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Create/Edit Sales Order Dialog -->
+  <el-dialog :title="soForm.id?'编辑销售单':'新建销售单'" :visible.sync="soDialogVisible" width="800px" :close-on-click-modal="false">
+    <el-form :model="soForm" label-width="100px" size="small">
+      <el-form-item label="客户" required>
+        <el-select v-model="soForm.customer_id" filterable placeholder="选择客户" style="width:100%">
+          <el-option v-for="c in customerOptions" :key="c.id" :label="c.name" :value="c.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="soForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+    </el-form>
+    <h4 style="margin:0 0 8px 20px">销售明细</h4>
+    <el-table :data="soForm.items" border size="small" style="margin:0 20px">
+      <el-table-column label="商品" width="240">
+        <template slot-scope="s">
+          <el-select v-model="s.row.product_id" filterable placeholder="选择商品" style="width:100%" @change="(val)=>onSoItemProductChange(s.$index,val)">
+            <el-option v-for="p in productOptions" :key="p.id" :label="p.name+' ('+p.code+')'" :value="p.id"></el-option>
+          </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column label="数量" width="140">
+        <template slot-scope="s">
+          <el-input-number v-model="s.row.quantity" :min="0.01" :step="1" :precision="2" style="width:120px" size="small" @change="calcSoTotal"></el-input-number>
+        </template>
+      </el-table-column>
+      <el-table-column label="单价" width="140">
+        <template slot-scope="s">
+          <el-input-number v-model="s.row.unit_price" :min="0" :step="0.01" :precision="2" style="width:120px" size="small" @change="calcSoTotal"></el-input-number>
+        </template>
+      </el-table-column>
+      <el-table-column label="金额" width="120">
+        <template slot-scope="s">¥{{ (s.row.quantity * s.row.unit_price).toFixed(2) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="60">
+        <template slot-scope="s">
+          <el-button type="danger" icon="el-icon-delete" size="mini" circle @click="soForm.items.splice(s.$index,1);calcSoTotal()"></el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <div style="margin:8px 20px 0">
+      <el-button type="text" @click="addSoItem">+ 添加商品</el-button>
+      <span style="float:right;font-size:16px;font-weight:bold">合计：¥{{ soTotal.toFixed(2) }}</span>
+    </div>
+    <div slot="footer">
+      <el-button @click="soDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveSalesOrder" :loading="soSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
   <!-- User Dialog -->
   <el-dialog :title="userForm.id?'编辑用户':'新增用户'" :visible.sync="userDialogVisible" width="450px" :close-on-click-modal="false">
     <el-form :model="userForm" label-width="100px" size="small">
@@ -548,6 +758,30 @@ new Vue({
       supplierForm: {},
       supplierSaving: false,
 
+      // Customers
+      customerList: [],
+      customerTotal: 0,
+      customerPage: 1,
+      customerKeyword: '',
+      customerLoading: false,
+      customerDialogVisible: false,
+      customerForm: {},
+      customerSaving: false,
+
+      // Sales Orders
+      soList: [],
+      soTotal: 0,
+      soPage: 1,
+      soKeyword: '',
+      soStatusFilter: '',
+      soLoading: false,
+      soDetailVisible: false,
+      soDetail: null,
+      soDialogVisible: false,
+      soForm: {customer_id:'', remark:'', items:[]},
+      soSaving: false,
+      customerOptions: [],
+
       // Products
       productList: [],
       productTotal: 0,
@@ -609,6 +843,13 @@ new Vue({
     orderStatusData() {
       const data = this.dashboardStats.find(s => s.key === 'order_status');
       return data ? data.value : [];
+    },
+    salesOrderStatusData() {
+      const data = this.dashboardStats.find(s => s.key === 'sales_order_status');
+      return data ? data.value : [];
+    },
+    soTotal() {
+      return this.soForm.items.reduce((sum, item) => sum + (item.quantity||0) * (item.unit_price||0), 0);
     }
   },
   methods: {
@@ -636,8 +877,10 @@ new Vue({
       this.activeMenu = index;
       if (index === 'dashboard') this.fetchDashboard();
       else if (index === 'suppliers') this.fetchSuppliers();
+      else if (index === 'customers') this.fetchCustomers();
       else if (index === 'products') this.fetchProducts();
       else if (index === 'purchase-orders') this.fetchPurchaseOrders();
+      else if (index === 'sales-orders') this.fetchSalesOrders();
       else if (index === 'users') this.fetchUsers();
       else if (index === 'inventory') this.fetchInventories();
     },
@@ -648,12 +891,15 @@ new Vue({
         const res = await api.get('/dashboard/stats');
         const d = res.data.data;
         this.dashboardStats = [
+          {key:'customers', label:'客户', value:d.customer_count},
           {key:'suppliers', label:'供应商', value:d.supplier_count},
           {key:'products', label:'商品', value:d.product_count},
           {key:'today_orders', label:'今日采购单', value:d.today_order_count},
+          {key:'today_sales', label:'今日销售单', value:d.today_sales_count, color:'#67c23a'},
           {key:'low_stock', label:'低库存', value:d.low_stock_count, color:'#e6a23c'},
           {key:'out_of_stock', label:'缺货', value:d.out_of_stock_count, color:'#f56c6c'},
           {key:'order_status', label:'采购单状态', value:d.order_status},
+          {key:'sales_order_status', label:'销售单状态', value:d.sales_order_status},
         ];
       } catch (e) { this.$message.error('获取仪表盘数据失败'); }
     },
@@ -702,6 +948,53 @@ new Vue({
         await api.delete('/suppliers/'+id);
         this.$message.success('删除成功');
         this.fetchSuppliers();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+
+    // === CUSTOMERS ===
+    async fetchCustomers() {
+      this.customerLoading = true;
+      try {
+        const res = await api.get('/customers', {params:{page:this.customerPage,page_size:20,keyword:this.customerKeyword}});
+        this.customerList = res.data.data;
+        this.customerTotal = res.data.total;
+      } catch (e) { this.$message.error('获取客户列表失败'); }
+      this.customerLoading = false;
+    },
+    openCustomerDialog(row) {
+      if (row) {
+        this.customerForm = {...row, statusBool: row.status===1};
+      } else {
+        this.customerForm = {code:'', name:'', contact_person:'', phone:'', address:'', statusBool:true};
+      }
+      this.customerDialogVisible = true;
+    },
+    async saveCustomer() {
+      if (!this.customerForm.code || !this.customerForm.name) {
+        return this.$message.warning('编码和名称为必填项');
+      }
+      this.customerSaving = true;
+      try {
+        const payload = {...this.customerForm, status: this.customerForm.statusBool?1:0};
+        delete payload.statusBool;
+        if (payload.id) {
+          await api.put('/customers/'+payload.id, payload);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/customers', payload);
+          this.$message.success('创建成功');
+        }
+        this.customerDialogVisible = false;
+        this.fetchCustomers();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.customerSaving = false;
+    },
+    async deleteCustomer(id) {
+      try {
+        await this.$confirm('确认删除该客户？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/customers/'+id);
+        this.$message.success('删除成功');
+        this.fetchCustomers();
       } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
     },
 
@@ -870,6 +1163,124 @@ new Vue({
       } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
     },
 
+    // === SALES ORDERS ===
+    async fetchSalesOrders() {
+      this.soLoading = true;
+      try {
+        const params = {page:this.soPage, page_size:20, keyword:this.soKeyword};
+        if (this.soStatusFilter) params.status = this.soStatusFilter;
+        const res = await api.get('/sales-orders', {params});
+        this.soList = res.data.data;
+        this.soTotal = res.data.total;
+      } catch (e) { this.$message.error('获取销售单失败'); }
+      this.soLoading = false;
+    },
+    async viewSalesOrder(row) {
+      try {
+        const res = await api.get('/sales-orders/'+row.id);
+        this.soDetail = res.data.data;
+        this.soDetailVisible = true;
+      } catch (e) { this.$message.error('获取详情失败'); }
+    },
+    async openSalesOrderDialog() {
+      try {
+        const [custRes, prodRes] = await Promise.all([
+          api.get('/customers/all'),
+          api.get('/products/all')
+        ]);
+        this.customerOptions = custRes.data.data;
+        this.productOptions = prodRes.data.data;
+      } catch (e) {}
+      this.soForm = {id:null, customer_id:'', remark:'', items:[{product_id:'', quantity:1, unit_price:0}]};
+      this.soDialogVisible = true;
+    },
+    async editSalesOrder(row) {
+      try {
+        const [custRes, prodRes, orderRes] = await Promise.all([
+          api.get('/customers/all'),
+          api.get('/products/all'),
+          api.get('/sales-orders/'+row.id)
+        ]);
+        this.customerOptions = custRes.data.data;
+        this.productOptions = prodRes.data.data;
+        const order = orderRes.data.data;
+        this.soForm = {
+          id: order.id,
+          customer_id: order.customer_id,
+          remark: order.remark || '',
+          items: order.items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price
+          }))
+        };
+        this.soDialogVisible = true;
+      } catch (e) { this.$message.error('获取销售单数据失败'); }
+    },
+    addSoItem() {
+      this.soForm.items.push({product_id:'', quantity:1, unit_price:0});
+    },
+    onSoItemProductChange(index, productId) {
+      const product = this.productOptions.find(p => p.id === productId);
+      if (product) {
+        this.soForm.items[index].unit_price = product.price;
+      }
+    },
+    calcSoTotal() {},
+    async saveSalesOrder() {
+      if (!this.soForm.customer_id) return this.$message.warning('请选择客户');
+      if (!this.soForm.items.length) return this.$message.warning('请添加至少一条销售明细');
+      for (const item of this.soForm.items) {
+        if (!item.product_id) return this.$message.warning('请选择商品');
+      }
+      this.soSaving = true;
+      try {
+        const payload = {
+          customer_id: this.soForm.customer_id,
+          remark: this.soForm.remark,
+          items: this.soForm.items.map(i => ({
+            product_id: i.product_id,
+            quantity: i.quantity,
+            unit_price: i.unit_price
+          }))
+        };
+        if (this.soForm.id) {
+          await api.put('/sales-orders/'+this.soForm.id, payload);
+          this.$message.success('销售单更新成功');
+        } else {
+          await api.post('/sales-orders', payload);
+          this.$message.success('销售单创建成功');
+        }
+        this.soDialogVisible = false;
+        this.fetchSalesOrders();
+      } catch (e) { this.$message.error(e.response?.data?.error || '操作失败'); }
+      this.soSaving = false;
+    },
+    async approveSalesOrder(id) {
+      try {
+        await this.$confirm('确认审核通过该销售单？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'info'});
+        await api.post('/sales-orders/'+id+'/approve');
+        this.$message.success('审核通过');
+        this.fetchSalesOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+    async deliverSalesOrder(id) {
+      try {
+        await this.$confirm('确认出库？系统将扣减库存。','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'info'});
+        await api.post('/sales-orders/'+id+'/deliver');
+        this.$message.success('出库成功');
+        this.fetchSalesOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error(e.response?.data?.error || '操作失败'); }
+    },
+    async cancelSalesOrder(id) {
+      try {
+        await this.$confirm('确认取消该销售单？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.post('/sales-orders/'+id+'/cancel');
+        this.$message.success('已取消');
+        this.fetchSalesOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+
     // === USERS ===
     async fetchUsers() {
       this.userLoading = true;
@@ -985,6 +1396,14 @@ new Vue({
     },
     statusTagType(s) {
       const map = {draft:'info', approved:'warning', received:'success', cancelled:'danger'};
+      return map[s] || 'info';
+    },
+    soStatusLabel(s) {
+      const map = {draft:'草稿', approved:'已审核', delivered:'已出库', cancelled:'已取消'};
+      return map[s] || s;
+    },
+    soStatusTagType(s) {
+      const map = {draft:'info', approved:'warning', delivered:'success', cancelled:'danger'};
       return map[s] || 'info';
     },
   },
