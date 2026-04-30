@@ -3,7 +3,7 @@
 > **项目定位**：轻量级ERP系统，覆盖采购→库存→销售→财务全链路
 > **技术栈**：Go + Gin + GORM + SQLite + Vue.js(CDN) + Element UI + JWT + ECharts
 > **架构风格**：前后端分离（SPA），RESTful API
-> **版本**：v2.1 | **更新**：2026-05-01
+> **版本**：v2.2 | **更新**：2026-05-01
 
 ---
 
@@ -24,6 +24,12 @@ go build -o buydemo.exe .
 docker-compose up -d
 # 访问 http://localhost:8080
 # 数据持久化在 ./data/ 目录
+```
+
+### API文档
+```bash
+# 启动服务后访问 Swagger API 文档
+# http://localhost:8080/swagger/index.html
 ```
 
 ---
@@ -48,6 +54,9 @@ docker-compose up -d
 | **数据可视化** | ECharts饼图/柱图/趋势线图 | ✅ |
 | **数据导入** | CSV批量导入商品/供应商 | ✅ |
 | **打印功能** | 采购单/销售单打印 | ✅ |
+| **合同管理** | 合同创建/签署/在线签字/可分享链接 | ✅ |
+| **系统设置** | 公司信息/备份恢复/参数配置 | ✅ |
+| **API文档** | Swagger UI / OpenAPI 3.0 | ✅ |
 
 ---
 
@@ -72,6 +81,7 @@ buy-demo/
 │   ├── auth.go                   # JWT认证
 │   └── operation_log.go          # 操作日志
 ├── router/router.go              # 路由注册
+├── docs/docs.go                  # Swagger API文档
 ├── static/index.html             # SPA前端
 └── README.md
 ```
@@ -233,6 +243,6 @@ buy-demo/
 
 ### ✅ 第四期：部署与完善
 20. ✅ Docker部署（Dockerfile + docker-compose）
-21. 🔜 数据库备份与恢复
-22. 🔜 系统参数配置
-23. 🔜 API文档（Swagger/OpenAPI）
+21. ✅ 数据库备份与恢复
+22. ✅ 系统参数配置
+23. ✅ API文档（Swagger/OpenAPI）

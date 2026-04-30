@@ -2,8 +2,11 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/z876730060/buydemo/docs"
 	"github.com/z876730060/buydemo/handlers"
 	"github.com/z876730060/buydemo/middlewares"
+	"github.com/swaggo/gin-swagger"
+	swaggerFiles "github.com/swaggo/files"
 )
 
 func Setup() *gin.Engine {
@@ -13,6 +16,9 @@ func Setup() *gin.Engine {
 	r.Static("/static", "./static")
 	r.StaticFile("/", "./static/index.html")
 	r.StaticFile("/contract-sign", "./static/contract_sign.html")
+
+	// Swagger API Documentation
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("/api")
 	{
