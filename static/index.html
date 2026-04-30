@@ -1473,6 +1473,7 @@
     <div slot="footer">
       <el-button @click="contractDetailVisible=false" size="small">关闭</el-button>
       <el-button type="primary" @click="printContract(contractDetail)" size="small" icon="el-icon-printer">打印</el-button>
+      <el-button type="success" @click="shareContract(contractDetail)" size="small" icon="el-icon-share">分享签署链接</el-button>
     </div>
   </el-dialog>
 
@@ -2965,6 +2966,30 @@ new Vue({
         this.contractDetail = res.data.data;
       } catch (e) { this.$message.error(e.response?.data?.error || '签字失败'); }
       this.signSaving = false;
+    },
+
+    // === SHARE CONTRACT LINK ===
+    async shareContract(contract) {
+      if (!contract) return this.$message.warning('请先查看合同详情');
+      try {
+        const res = await api.post('/contracts/' + contract.id + '/generate-token');
+        const signUrl = res.data.data.sign_url;
+        // Try clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(signUrl);
+          this.$message.success('签署链接已复制到剪贴板！');
+        } else {
+          // Fallback: prompt to copy
+          this.$prompt('请复制以下签署链接发送给对方：', '签署链接', {
+            inputValue: signUrl,
+            confirmButtonText: '已复制',
+            cancelButtonText: '关闭',
+            inputReadonly: true
+          });
+        }
+      } catch (e) {
+        this.$message.error(e.response?.data?.error || '生成链接失败');
+      }
     },
 
     // === PRINT CONTRACT ===

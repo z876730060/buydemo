@@ -12,11 +12,16 @@ func Setup() *gin.Engine {
 	// Serve static files
 	r.Static("/static", "./static")
 	r.StaticFile("/", "./static/index.html")
+	r.StaticFile("/contract-sign", "./static/contract_sign.html")
 
 	api := r.Group("/api")
 	{
 		// Public routes
 		api.POST("/auth/login", handlers.Login)
+
+		// Public contract signing (no auth)
+		api.GET("/public/contract/:token", handlers.GetPublicContract)
+		api.POST("/public/contract/:token/sign", handlers.SignPublicContract)
 
 		// Protected routes
 		auth := api.Group("")
@@ -138,6 +143,7 @@ func Setup() *gin.Engine {
 			auth.DELETE("/contracts/:id", handlers.DeleteContract)
 			auth.POST("/contracts/:id/sign", middlewares.LogOperation("sign", "contract", 0, "合同签字"), handlers.SignContract)
 			auth.POST("/contracts/:id/cancel", middlewares.LogOperation("cancel", "contract", 0, "取消合同"), handlers.CancelContract)
+			auth.POST("/contracts/:id/generate-token", middlewares.LogOperation("generate_token", "contract", 0, "生成签署链接"), handlers.GenerateSignToken)
 		}
 	}
 

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>合同签署 - Buy-Demo ERP</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .header { background: #304156; color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .header h1 { font-size: 18px; font-weight: normal; }
+    .container { max-width: 800px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 32px; margin-bottom: 24px; }
+    .card h2 { font-size: 20px; color: #303133; margin-bottom: 20px; text-align: center; }
+    .card h3 { font-size: 16px; color: #303133; margin-bottom: 12px; }
+    .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .info-table td { padding: 8px 12px; border: 1px solid #ebeef5; font-size: 14px; }
+    .info-table td:first-child { width: 120px; color: #909399; background: #fafafa; }
+    .content-box { border: 1px solid #ebeef5; border-radius: 4px; padding: 20px; margin: 16px 0; line-height: 2; white-space: pre-wrap; font-size: 14px; background: #fafafa; min-height: 100px; }
+    .sign-section { margin: 24px 0; }
+    .sign-box { border: 2px dashed #409eff; border-radius: 4px; background: #fff; cursor: crosshair; touch-action: none; margin: 8px 0; }
+    .sign-box canvas { display: block; width: 100%; height: 160px; }
+    .signed-area { text-align: center; padding: 16px; }
+    .signed-area img { max-width: 200px; max-height: 80px; border: 1px solid #ddd; background: #fff; }
+    .signed-area .time { color: #909399; font-size: 12px; margin-top: 4px; }
+    .actions { text-align: center; margin: 24px 0; }
+    .actions button { min-width: 160px; }
+    .loading { text-align: center; padding: 64px 0; color: #909399; }
+    .loading .el-icon-loading { font-size: 32px; margin-bottom: 16px; }
+    .error { text-align: center; padding: 64px 0; }
+    .error h2 { color: #f56c6c; margin-bottom: 12px; }
+    .error p { color: #909399; }
+    .success { text-align: center; padding: 64px 0; }
+    .success .icon { font-size: 64px; color: #67c23a; margin-bottom: 16px; }
+    .success h2 { color: #67c23a; margin-bottom: 12px; }
+    .success p { color: #909399; }
+    .footer { text-align: center; padding: 24px; color: #c0c4cc; font-size: 12px; }
+    .status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+    .status-tag.draft { background: #f0f0f0; color: #909399; }
+    .status-tag.sent { background: #fdf6ec; color: #e6a23c; }
+    .status-tag.completed { background: #f0f9eb; color: #67c23a; }
+    .status-tag.cancelled { background: #fef0f0; color: #f56c6c; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>📄 合同签署系统</h1>
+    <span style="font-size:13px;color:#bfcbd9">Buy-Demo ERP</span>
+  </div>
+
+  <div class="container">
+    <!-- Loading -->
+    <div v-if="loading" class="loading">
+      <i class="el-icon-loading"></i>
+      <p>加载合同信息...</p>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="error">
+      <h2>😞 {{ errorTitle }}</h2>
+      <p>{{ errorMsg }}</p>
+    </div>
+
+    <!-- Success -->
+    <div v-else-if="signed" class="success">
+      <div class="icon">✅</div>
+      <h2>签署成功！</h2>
+      <p>感谢您签署合同「{{ contract.title }}」</p>
+      <p style="margin-top:8px">合同编号：{{ contract.contract_no }}</p>
+      <el-button type="primary" style="margin-top:24px" @click="signed=false;loadContract()">返回查看</el-button>
+    </div>
+
+    <!-- Contract -->
+    <div v-else-if="contract">
+      <div class="card">
+        <h2>📄 合同签署</h2>
+        <table class="info-table">
+          <tr><td>合同编号</td><td>{{ contract.contract_no }}</td></tr>
+          <tr><td>合同标题</td><td>{{ contract.title }}</td></tr>
+          <tr><td>合同类型</td><td>{{ contract.type==='purchase'?'采购合同':'销售合同' }}</td></tr>
+          <tr><td>签署方</td><td>{{ contract.party_b_name }}</td></tr>
+          <tr><td>合同金额</td><td>¥{{ (contract.total_amount||0).toFixed(2) }}</td></tr>
+          <tr><td>状态</td>
+            <td>
+              <span class="status-tag" :class="contract.status">{{ statusLabel(contract.status) }}</span>
+            </td>
+          </tr>
+        </table>
+
+        <h3>合同条款</h3>
+        <div class="content-box">{{ contract.content || '（无详细条款）' }}</div>
+      </div>
+
+      <!-- Signature status -->
+      <div class="card">
+        <h3>📝 签署状态</h3>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <h4 style="margin-bottom:8px">甲方（我方）</h4>
+            <div v-if="contract.signed_by_a" class="signed-area">
+              <img :src="contract.signed_by_a"/>
+              <div class="time">已签署</div>
+            </div>
+            <div v-else style="color:#909399;padding:16px;text-align:center">待签署</div>
+          </el-col>
+          <el-col :span="12">
+            <h4 style="margin-bottom:8px">乙方（{{ contract.party_b_name }}）</h4>
+            <div v-if="contract.signed_by_b" class="signed-area">
+              <img :src="contract.signed_by_b"/>
+              <div class="time">已签署</div>
+            </div>
+            <div v-else style="color:#909399;padding:16px;text-align:center">待签署</div>
+          </el-col>
+        </el-row>
+      </div>
+
+      <!-- Signing area (only for party b when status is 'sent') -->
+      <div v-if="contract.status === 'sent' && !contract.signed_by_b" class="card">
+        <h3>✍️ 请在下方签字</h3>
+        <p style="color:#909399;font-size:13px;margin-bottom:12px">乙方：{{ contract.party_b_name }}</p>
+        <div class="sign-box">
+          <canvas ref="signCanvas" @mousedown="signStart" @mousemove="signMove" @mouseup="signEnd" @mouseleave="signEnd" @touchstart.prevent="signTouchStart" @touchmove.prevent="signTouchMove" @touchend.prevent="signEnd"></canvas>
+        </div>
+        <div style="text-align:center;margin-top:8px">
+          <el-button size="small" @click="clearSignature">清除</el-button>
+          <span style="color:#909399;font-size:12px;margin-left:12px">使用鼠标或手指绘制签名</span>
+        </div>
+        <div class="actions">
+          <el-button type="primary" size="large" @click="submitSign" :loading="signLoading" style="width:200px">确认签署</el-button>
+        </div>
+      </div>
+
+      <!-- Message for other statuses -->
+      <div v-else-if="contract.status === 'draft'" class="card" style="text-align:center;color:#909399">
+        <p>合同尚未发送，请等待甲方签署后再进行乙方签署。</p>
+      </div>
+      <div v-else-if="contract.status === 'completed'" class="card" style="text-align:center;color:#67c23a">
+        <p>✅ 该合同已完成双方签署。</p>
+      </div>
+      <div v-else-if="contract.status === 'cancelled'" class="card" style="text-align:center;color:#f56c6c">
+        <p>❌ 该合同已取消。</p>
+      </div>
+    </div>
+
+    <div class="footer">Buy-Demo ERP 合同签署系统 | 安全电子签名</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@2.7.14/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+const api = axios.create({baseURL: '/api'});
+
+new Vue({
+  el: '#app',
+  data() {
+    return {
+      token: '',
+      contract: null,
+      loading: true,
+      error: false,
+      errorTitle: '加载失败',
+      errorMsg: '',
+      signed: false,
+      signLoading: false,
+      signDrawing: false,
+      signCtx: null,
+    };
+  },
+  methods: {
+    statusLabel(s) {
+      const map = {draft:'草稿', sent:'待乙方签署', signed_by_b:'仅乙方签署', completed:'已完成', cancelled:'已取消'};
+      return map[s] || s;
+    },
+    async loadContract() {
+      this.loading = true;
+      this.error = false;
+      try {
+        const res = await api.get('/public/contract/' + this.token);
+        this.contract = res.data.data;
+      } catch (e) {
+        this.error = true;
+        this.errorTitle = '加载失败';
+        this.errorMsg = e.response?.data?.error || '无法加载合同信息，请检查链接是否有效。';
+      }
+      this.loading = false;
+
+      // Init canvas after render
+      this.$nextTick(() => this.initCanvas());
+    },
+    initCanvas() {
+      const canvas = this.$refs.signCanvas;
+      if (!canvas) return;
+      // Set canvas actual size
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = (rect.width || 400) * dpr;
+      canvas.height = 160 * dpr;
+      canvas.style.width = '100%';
+      canvas.style.height = '160px';
+      this.signCtx = canvas.getContext('2d');
+      this.signCtx.scale(dpr, dpr);
+      this.signCtx.strokeStyle = '#000';
+      this.signCtx.lineWidth = 2;
+      this.signCtx.lineCap = 'round';
+      this.signCtx.lineJoin = 'round';
+    },
+    getCanvasPos(e) {
+      const rect = this.$refs.signCanvas.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    },
+    signStart(e) {
+      this.signDrawing = true;
+      const pos = this.getCanvasPos(e);
+      this.signCtx.beginPath();
+      this.signCtx.moveTo(pos.x, pos.y);
+    },
+    signMove(e) {
+      if (!this.signDrawing) return;
+      const pos = this.getCanvasPos(e);
+      this.signCtx.lineTo(pos.x, pos.y);
+      this.signCtx.stroke();
+    },
+    signEnd() {
+      this.signDrawing = false;
+    },
+    signTouchStart(e) {
+      e.preventDefault();
+      const touch = e.touches[0];
+      this.signStart(touch);
+    },
+    signTouchMove(e) {
+      e.preventDefault();
+      if (!this.signDrawing) return;
+      const touch = e.touches[0];
+      this.signMove(touch);
+    },
+    clearSignature() {
+      const canvas = this.$refs.signCanvas;
+      if (!canvas || !this.signCtx) return;
+      const dpr = window.devicePixelRatio || 1;
+      this.signCtx.clearRect(0, 0, canvas.width/dpr, canvas.height/dpr);
+    },
+    async submitSign() {
+      const canvas = this.$refs.signCanvas;
+      if (!canvas || !this.signCtx) return;
+
+      // Check if signature is empty
+      const dpr = window.devicePixelRatio || 1;
+      const imageData = this.signCtx.getImageData(0, 0, canvas.width/dpr, canvas.height/dpr);
+      const pixels = imageData.data;
+      let hasDrawing = false;
+      for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] !== 0) { hasDrawing = true; break; }
+      }
+      if (!hasDrawing) return this.$message.warning('请先签名');
+
+      const dataUrl = canvas.toDataURL('image/png');
+      this.signLoading = true;
+      try {
+        const res = await api.post('/public/contract/' + this.token + '/sign', {
+          signature: dataUrl
+        });
+        this.$message.success('签署成功！');
+        this.signed = true;
+      } catch (e) {
+        this.$message.error(e.response?.data?.error || '签署失败');
+      }
+      this.signLoading = false;
+    },
+  },
+  mounted() {
+    const params = new URLSearchParams(window.location.search);
+    this.token = params.get('token');
+    if (!this.token) {
+      this.error = true;
+      this.errorTitle = '无效链接';
+      this.errorMsg = '缺少签署令牌，请检查您收到的签署链接是否完整。';
+      this.loading = false;
+      return;
+    }
+    this.loadContract();
+  }
+});
+</script>
+</body>
+</html>
