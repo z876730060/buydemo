@@ -1854,6 +1854,18 @@ new Vue({
       signSaving: false,
       signDrawing: false,
       signCtx: null,
+
+      // System Settings
+      systemTab: 'settings',
+      systemSettings: {},
+      systemSettingsSaving: false,
+
+      // Backups
+      backupList: [],
+      backupTotal: 0,
+      backupPage: 1,
+      backupLoading: false,
+      backupCreating: false,
     };
   },
   computed: {
