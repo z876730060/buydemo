@@ -3,7 +3,7 @@
 > **项目定位**：轻量级ERP系统，覆盖采购→库存→销售→财务全链路
 > **技术栈**：Go + Gin + GORM + SQLite + Vue.js(CDN) + Element UI + JWT + ECharts
 > **架构风格**：前后端分离（SPA），RESTful API
-> **版本**：v2.2 | **更新**：2026-05-01
+> **版本**：v2.3 | **更新**：2026-05-01
 
 ---
 
@@ -56,6 +56,8 @@ docker-compose up -d
 | **打印功能** | 采购单/销售单打印 | ✅ |
 | **合同管理** | 合同创建/签署/在线签字/可分享链接 | ✅ |
 | **系统设置** | 公司信息/备份恢复/参数配置 | ✅ |
+| **公司管理** | CRUD/分页搜索/关联仓库 | ✅ |
+| **仓库管理** | CRUD/分页搜索/关联公司/多仓库支持 | ✅ |
 | **API文档** | Swagger UI / OpenAPI 3.0 | ✅ |
 
 ---
@@ -72,11 +74,13 @@ buy-demo/
 │   ├── product.go, purchase_order.go
 │   ├── sales.go, inventory.go
 │   ├── finance.go, operation_log.go
+│   ├── company.go, warehouse.go
 ├── handlers/                     # API处理器
 │   ├── auth.go, user.go
 │   ├── supplier.go, customer.go, product.go
 │   ├── purchase.go, sales.go, inventory.go
 │   ├── finance.go, operation_log.go, report.go
+│   ├── company.go, warehouse.go
 ├── middlewares/
 │   ├── auth.go                   # JWT认证
 │   └── operation_log.go          # 操作日志
@@ -171,6 +175,26 @@ buy-demo/
 | CRUD | /api/finance/expenses | 费用管理 |
 | GET | /api/finance/payments | 收付款记录 |
 
+### 公司管理
+| 方法 | 路径 | 说明 |
+|:---|:---|:---|
+| GET | /api/companies | 列表（分页+搜索） |
+| GET | /api/companies/all | 全部启用 |
+| GET | /api/companies/:id | 详情 |
+| POST | /api/companies | 新增 |
+| PUT | /api/companies/:id | 编辑 |
+| DELETE | /api/companies/:id | 删除 |
+
+### 仓库管理
+| 方法 | 路径 | 说明 |
+|:---|:---|:---|
+| GET | /api/warehouses | 列表（分页+搜索+按公司过滤） |
+| GET | /api/warehouses/all | 全部启用 |
+| GET | /api/warehouses/:id | 详情 |
+| POST | /api/warehouses | 新增 |
+| PUT | /api/warehouses/:id | 编辑 |
+| DELETE | /api/warehouses/:id | 删除 |
+
 ### 其他
 | 方法 | 路径 | 说明 |
 |:---|:---|:---|
@@ -199,12 +223,14 @@ buy-demo/
 | 表 | 说明 |
 |:---|:---|
 | users | 用户（admin/operator） |
+| companies | 公司（多公司支持） |
+| warehouses | 仓库（多仓库支持） |
 | suppliers | 供应商（编码唯一） |
 | customers | 客户（编码唯一） |
 | products | 商品/物料（编码唯一，自动创建库存） |
 | purchase_orders/items | 采购单及明细 |
 | sales_orders/items | 销售单及明细 |
-| inventories | 库存台账（与商品1:1） |
+| inventories | 库存台账（商品+仓库） |
 | inventory_logs | 库存流水（in/out/adjust） |
 | account_payables | 应付账款（采购入库自动生成） |
 | account_receivables | 应收账款（销售出库自动生成） |
@@ -246,3 +272,10 @@ buy-demo/
 21. ✅ 数据库备份与恢复
 22. ✅ 系统参数配置
 23. ✅ API文档（Swagger/OpenAPI）
+
+### ✅ 第五期：多仓库、多公司
+24. ✅ 公司管理（CRUD/搜索）
+25. ✅ 仓库管理（CRUD/搜索/多公司关联）
+26. ✅ 库存模型更新（商品+仓库关联）
+27. ✅ 采购单、销售单更新（仓库关联）
+28. ✅ 前端界面更新（公司/仓库管理）

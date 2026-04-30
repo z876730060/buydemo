@@ -34,6 +34,8 @@ func Init(cfg *config.Config) {
 	// Auto migrate
 	err = DB.AutoMigrate(
 		&models.User{},
+		&models.Company{},
+		&models.Warehouse{},
 		&models.Supplier{},
 		&models.Product{},
 		&models.PurchaseOrder{},
@@ -58,6 +60,44 @@ func Init(cfg *config.Config) {
 
 	// Seed default admin user
 	seedAdmin(cfg)
+	
+	// Seed default company and warehouse
+	seedDefaultCompanyAndWarehouse()
+}
+
+func seedDefaultCompanyAndWarehouse() {
+	var companyCount int64
+	DB.Model(&models.Company{}).Count(&companyCount)
+	if companyCount > 0 {
+		return
+	}
+
+	defaultCompany := models.Company{
+		Code:   "C001",
+		Name:   "默认公司",
+		Contact: "管理员",
+		Status: 1,
+	}
+
+	if err := DB.Create(&defaultCompany).Error; err != nil {
+		fmt.Println("Failed to create default company:", err)
+		return
+	}
+
+	defaultWarehouse := models.Warehouse{
+		Code:      "W001",
+		Name:      "默认仓库",
+		CompanyID: defaultCompany.ID,
+		IsDefault: true,
+		Status:    1,
+	}
+
+	if err := DB.Create(&defaultWarehouse).Error; err != nil {
+		fmt.Println("Failed to create default warehouse:", err)
+		return
+	}
+
+	fmt.Println("Default company and warehouse created")
 }
 
 func seedAdmin(cfg *config.Config) {

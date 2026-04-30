@@ -79,6 +79,8 @@
       <el-aside width="200px" class="no-print">
         <el-menu :default-active="activeMenu" background-color="#304156" text-color="#bfcbd9" active-text-color="#409eff" @select="handleMenuSelect">
           <el-menu-item index="dashboard"><i class="el-icon-s-data"></i>仪表盘</el-menu-item>
+          <el-menu-item index="companies" v-if="currentUser.role==='admin'"><i class="el-icon-office-building"></i>公司管理</el-menu-item>
+          <el-menu-item index="warehouses" v-if="currentUser.role==='admin'"><i class="el-icon-s-home"></i>仓库管理</el-menu-item>
           <el-menu-item index="customers"><i class="el-icon-s-custom"></i>客户管理</el-menu-item>
           <el-menu-item index="suppliers"><i class="el-icon-s-hop"></i>供应商管理</el-menu-item>
           <el-menu-item index="products"><i class="el-icon-goods"></i>商品管理</el-menu-item>
@@ -432,6 +434,77 @@
           </el-table>
           <div style="margin-top:16px;text-align:right">
             <el-pagination :total="customerTotal" :page-size="20" :current-page="customerPage" layout="total,prev,pager,next" @current-change="p=>{customerPage=p;fetchCustomers()}"></el-pagination>
+          </div>
+        </div>
+
+        <!-- Companies -->
+        <div v-if="activeMenu === 'companies'">
+          <div class="page-title">🏢 公司管理</div>
+          <div class="search-bar">
+            <el-input v-model="companyKeyword" placeholder="搜索编码/名称/联系人" style="width:260px" size="small" clearable @clear="fetchCompanies" @keyup.enter="fetchCompanies"></el-input>
+            <el-button type="primary" size="small" @click="fetchCompanies">搜索</el-button>
+            <el-button type="success" size="small" @click="openCompanyDialog()">+ 新增公司</el-button>
+          </div>
+          <el-table :data="companyList" stripe v-loading="companyLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="code" label="编码" width="120"></el-table-column>
+            <el-table-column prop="name" label="公司名称" min-width="160"></el-table-column>
+            <el-table-column prop="contact" label="联系人" width="120"></el-table-column>
+            <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
+            <el-table-column prop="email" label="邮箱" width="160"></el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="s.row.status===1?'success':'danger'" size="small">{{ s.row.status===1?'启用':'禁用' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openCompanyDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" @click="deleteCompany(s.row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="companyTotal" :page-size="20" :current-page="companyPage" layout="total,prev,pager,next" @current-change="p=>{companyPage=p;fetchCompanies()}"></el-pagination>
+          </div>
+        </div>
+
+        <!-- Warehouses -->
+        <div v-if="activeMenu === 'warehouses'">
+          <div class="page-title">🏠 仓库管理</div>
+          <div class="search-bar">
+            <el-input v-model="warehouseKeyword" placeholder="搜索编码/名称" style="width:260px" size="small" clearable @clear="fetchWarehouses" @keyup.enter="fetchWarehouses"></el-input>
+            <el-select v-model="warehouseCompanyFilter" placeholder="公司筛选" style="width:140px" size="small" clearable @change="fetchWarehouses">
+              <el-option v-for="c in allCompanies" :key="c.id" :label="c.name" :value="c.id"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" @click="fetchWarehouses">搜索</el-button>
+            <el-button type="success" size="small" @click="openWarehouseDialog()">+ 新增仓库</el-button>
+          </div>
+          <el-table :data="warehouseList" stripe v-loading="warehouseLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="code" label="编码" width="120"></el-table-column>
+            <el-table-column prop="name" label="仓库名称" min-width="160"></el-table-column>
+            <el-table-column prop="company.name" label="所属公司" min-width="140"></el-table-column>
+            <el-table-column prop="contact" label="联系人" width="120"></el-table-column>
+            <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
+            <el-table-column label="默认仓库" width="100">
+              <template slot-scope="s">
+                <el-tag v-if="s.row.is_default" type="success" size="small">是</el-tag>
+                <el-tag v-else type="info" size="small">否</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="s.row.status===1?'success':'danger'" size="small">{{ s.row.status===1?'启用':'禁用' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openWarehouseDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" @click="deleteWarehouse(s.row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="warehouseTotal" :page-size="20" :current-page="warehousePage" layout="total,prev,pager,next" @current-change="p=>{warehousePage=p;fetchWarehouses()}"></el-pagination>
           </div>
         </div>
 
@@ -994,6 +1067,82 @@
     </div>
   </el-dialog>
 
+  <!-- Company Dialog -->
+  <el-dialog :title="companyForm.id?'编辑公司':'新增公司'" :visible.sync="companyDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="companyForm" label-width="100px" size="small">
+      <el-form-item label="编码" required>
+        <el-input v-model="companyForm.code" placeholder="公司编码"></el-input>
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="companyForm.name" placeholder="公司名称"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人">
+        <el-input v-model="companyForm.contact"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话">
+        <el-input v-model="companyForm.phone"></el-input>
+      </el-form-item>
+      <el-form-item label="邮箱">
+        <el-input v-model="companyForm.email"></el-input>
+      </el-form-item>
+      <el-form-item label="税号">
+        <el-input v-model="companyForm.tax_no"></el-input>
+      </el-form-item>
+      <el-form-item label="地址">
+        <el-input v-model="companyForm.address" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="companyForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="companyForm.statusBool" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="companyDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveCompany" :loading="companySaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Warehouse Dialog -->
+  <el-dialog :title="warehouseForm.id?'编辑仓库':'新增仓库'" :visible.sync="warehouseDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="warehouseForm" label-width="100px" size="small">
+      <el-form-item label="编码" required>
+        <el-input v-model="warehouseForm.code" placeholder="仓库编码"></el-input>
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="warehouseForm.name" placeholder="仓库名称"></el-input>
+      </el-form-item>
+      <el-form-item label="所属公司" required>
+        <el-select v-model="warehouseForm.company_id" placeholder="请选择公司" style="width:100%">
+          <el-option v-for="c in allCompanies" :key="c.id" :label="c.name" :value="c.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="联系人">
+        <el-input v-model="warehouseForm.contact"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话">
+        <el-input v-model="warehouseForm.phone"></el-input>
+      </el-form-item>
+      <el-form-item label="地址">
+        <el-input v-model="warehouseForm.address" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="warehouseForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="默认仓库">
+        <el-switch v-model="warehouseForm.is_default" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="warehouseForm.statusBool" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="warehouseDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveWarehouse" :loading="warehouseSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
   <!-- Product Dialog -->
   <el-dialog :title="productForm.id?'编辑商品':'新增商品'" :visible.sync="productDialogVisible" width="500px" :close-on-click-modal="false">
     <el-form :model="productForm" label-width="100px" size="small">
@@ -1076,6 +1225,11 @@
       <el-form-item label="供应商" required>
         <el-select v-model="orderForm.supplier_id" filterable placeholder="选择供应商" style="width:100%">
           <el-option v-for="s in supplierOptions" :key="s.id" :label="s.name" :value="s.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="仓库" required>
+        <el-select v-model="orderForm.warehouse_id" filterable placeholder="选择仓库" style="width:100%">
+          <el-option v-for="w in allWarehouses" :key="w.id" :label="w.name" :value="w.id"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="备注">
@@ -1162,6 +1316,11 @@
       <el-form-item label="客户" required>
         <el-select v-model="soForm.customer_id" filterable placeholder="选择客户" style="width:100%">
           <el-option v-for="c in customerOptions" :key="c.id" :label="c.name" :value="c.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="仓库" required>
+        <el-select v-model="soForm.warehouse_id" filterable placeholder="选择仓库" style="width:100%">
+          <el-option v-for="w in allWarehouses" :key="w.id" :label="w.name" :value="w.id"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="备注">
@@ -1671,6 +1830,29 @@ new Vue({
       customerForm: {},
       customerSaving: false,
 
+      // Companies
+      companyList: [],
+      companyTotal: 0,
+      companyPage: 1,
+      companyKeyword: '',
+      companyLoading: false,
+      companyDialogVisible: false,
+      companyForm: {},
+      companySaving: false,
+      allCompanies: [],
+
+      // Warehouses
+      warehouseList: [],
+      warehouseTotal: 0,
+      warehousePage: 1,
+      warehouseKeyword: '',
+      warehouseCompanyFilter: '',
+      warehouseLoading: false,
+      warehouseDialogVisible: false,
+      warehouseForm: {},
+      warehouseSaving: false,
+      allWarehouses: [],
+
       // Sales Orders
       soList: [],
       soTotal: 0,
@@ -1681,7 +1863,7 @@ new Vue({
       soDetailVisible: false,
       soDetail: null,
       soDialogVisible: false,
-      soForm: {customer_id:'', remark:'', items:[]},
+      soForm: {customer_id:'', warehouse_id:'', remark:'', items:[]},
       soSaving: false,
       customerOptions: [],
 
@@ -1705,7 +1887,7 @@ new Vue({
       orderDetailVisible: false,
       orderDetail: null,
       orderDialogVisible: false,
-      orderForm: {supplier_id:'', remark:'', items:[]},
+      orderForm: {supplier_id:'', warehouse_id:'', remark:'', items:[]},
       orderSaving: false,
       supplierOptions: [],
       productOptions: [],
@@ -1910,9 +2092,11 @@ new Vue({
       if (index === 'dashboard') this.fetchDashboard();
       else if (index === 'suppliers') this.fetchSuppliers();
       else if (index === 'customers') this.fetchCustomers();
+      else if (index === 'companies') { this.fetchCompanies(); this.fetchAllCompanies(); }
+      else if (index === 'warehouses') { this.fetchWarehouses(); this.fetchAllCompanies(); }
       else if (index === 'products') this.fetchProducts();
-      else if (index === 'purchase-orders') this.fetchPurchaseOrders();
-      else if (index === 'sales-orders') this.fetchSalesOrders();
+      else if (index === 'purchase-orders') { this.fetchPurchaseOrders(); this.fetchAllWarehouses(); }
+      else if (index === 'sales-orders') { this.fetchSalesOrders(); this.fetchAllWarehouses(); }
       else if (index === 'users') this.fetchUsers();
       else if (index === 'finance') this.fetchFinanceSummary();
       else if (index === 'inventory') this.fetchInventories();
@@ -2037,6 +2221,117 @@ new Vue({
         await api.delete('/customers/'+id);
         this.$message.success('删除成功');
         this.fetchCustomers();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+
+    // === COMPANIES ===
+    async fetchCompanies() {
+      this.companyLoading = true;
+      try {
+        const res = await api.get('/companies', {params:{page:this.companyPage,page_size:20,keyword:this.companyKeyword}});
+        this.companyList = res.data.data;
+        this.companyTotal = res.data.total;
+      } catch (e) { this.$message.error('获取公司列表失败'); }
+      this.companyLoading = false;
+    },
+    async fetchAllCompanies() {
+      try {
+        const res = await api.get('/companies/all');
+        this.allCompanies = res.data.data;
+      } catch (e) { }
+    },
+    openCompanyDialog(row) {
+      if (row) {
+        this.companyForm = {...row, statusBool: row.status===1};
+      } else {
+        this.companyForm = {code:'', name:'', contact:'', phone:'', email:'', tax_no:'', address:'', remark:'', statusBool:true};
+      }
+      this.companyDialogVisible = true;
+    },
+    async saveCompany() {
+      if (!this.companyForm.code || !this.companyForm.name) {
+        return this.$message.warning('编码和名称为必填项');
+      }
+      this.companySaving = true;
+      try {
+        const payload = {...this.companyForm, status: this.companyForm.statusBool?1:0};
+        delete payload.statusBool;
+        if (payload.id) {
+          await api.put('/companies/'+payload.id, payload);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/companies', payload);
+          this.$message.success('创建成功');
+        }
+        this.companyDialogVisible = false;
+        this.fetchCompanies();
+        this.fetchAllCompanies();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.companySaving = false;
+    },
+    async deleteCompany(id) {
+      try {
+        await this.$confirm('确认删除该公司？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/companies/'+id);
+        this.$message.success('删除成功');
+        this.fetchCompanies();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+
+    // === WAREHOUSES ===
+    async fetchWarehouses() {
+      this.warehouseLoading = true;
+      try {
+        const params = {page:this.warehousePage,page_size:20,keyword:this.warehouseKeyword};
+        if (this.warehouseCompanyFilter) {
+          params.company_id = this.warehouseCompanyFilter;
+        }
+        const res = await api.get('/warehouses', {params});
+        this.warehouseList = res.data.data;
+        this.warehouseTotal = res.data.total;
+      } catch (e) { this.$message.error('获取仓库列表失败'); }
+      this.warehouseLoading = false;
+    },
+    async fetchAllWarehouses() {
+      try {
+        const res = await api.get('/warehouses/all');
+        this.allWarehouses = res.data.data;
+      } catch (e) { }
+    },
+    openWarehouseDialog(row) {
+      if (row) {
+        this.warehouseForm = {...row, statusBool: row.status===1};
+      } else {
+        this.warehouseForm = {code:'', name:'', company_id:'', contact:'', phone:'', address:'', remark:'', is_default:false, statusBool:true};
+      }
+      this.warehouseDialogVisible = true;
+    },
+    async saveWarehouse() {
+      if (!this.warehouseForm.code || !this.warehouseForm.name || !this.warehouseForm.company_id) {
+        return this.$message.warning('编码、名称和所属公司为必填项');
+      }
+      this.warehouseSaving = true;
+      try {
+        const payload = {...this.warehouseForm, status: this.warehouseForm.statusBool?1:0};
+        delete payload.statusBool;
+        if (payload.id) {
+          await api.put('/warehouses/'+payload.id, payload);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/warehouses', payload);
+          this.$message.success('创建成功');
+        }
+        this.warehouseDialogVisible = false;
+        this.fetchWarehouses();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.warehouseSaving = false;
+    },
+    async deleteWarehouse(id) {
+      try {
+        await this.$confirm('确认删除该仓库？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/warehouses/'+id);
+        this.$message.success('删除成功');
+        this.fetchWarehouses();
       } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
     },
 

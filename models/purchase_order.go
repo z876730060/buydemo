@@ -7,6 +7,8 @@ type PurchaseOrder struct {
 	OrderNo      string               `json:"order_no" gorm:"uniqueIndex;size:64;not null"`
 	SupplierID   uint                 `json:"supplier_id" gorm:"not null"`
 	Supplier     Supplier             `json:"supplier" gorm:"foreignKey:SupplierID"`
+	WarehouseID  uint                 `json:"warehouse_id" gorm:"not null;index"`
+	Warehouse    Warehouse            `json:"warehouse" gorm:"foreignKey:WarehouseID"`
 	TotalAmount  float64              `json:"total_amount" gorm:"type:decimal(12,2);default:0"`
 	Status       string               `json:"status" gorm:"size:32;default:draft"`
 	Remark       string               `json:"remark" gorm:"type:text"`

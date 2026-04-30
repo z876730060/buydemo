@@ -2,11 +2,11 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/z876730060/buydemo/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	_ "github.com/z876730060/buydemo/docs"
 	"github.com/z876730060/buydemo/handlers"
 	"github.com/z876730060/buydemo/middlewares"
-	"github.com/swaggo/gin-swagger"
-	swaggerFiles "github.com/swaggo/files"
 )
 
 func Setup() *gin.Engine {
@@ -35,6 +35,22 @@ func Setup() *gin.Engine {
 		{
 			auth.GET("/auth/me", handlers.Me)
 			auth.POST("/auth/change-password", handlers.ChangePassword)
+
+			// Companies
+			auth.GET("/companies", handlers.GetCompanies)
+			auth.GET("/companies/all", handlers.GetAllCompanies)
+			auth.GET("/companies/:id", handlers.GetCompany)
+			auth.POST("/companies", middlewares.LogOperation("create", "company", 0, "新增公司"), handlers.CreateCompany)
+			auth.PUT("/companies/:id", handlers.UpdateCompany)
+			auth.DELETE("/companies/:id", handlers.DeleteCompany)
+
+			// Warehouses
+			auth.GET("/warehouses", handlers.GetWarehouses)
+			auth.GET("/warehouses/all", handlers.GetAllWarehouses)
+			auth.GET("/warehouses/:id", handlers.GetWarehouse)
+			auth.POST("/warehouses", middlewares.LogOperation("create", "warehouse", 0, "新增仓库"), handlers.CreateWarehouse)
+			auth.PUT("/warehouses/:id", handlers.UpdateWarehouse)
+			auth.DELETE("/warehouses/:id", handlers.DeleteWarehouse)
 
 			// Suppliers
 			auth.GET("/suppliers", handlers.GetSuppliers)

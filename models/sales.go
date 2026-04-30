@@ -19,6 +19,8 @@ type SalesOrder struct {
 	OrderNo     string              `json:"order_no" gorm:"uniqueIndex;size:64;not null"`
 	CustomerID  uint                `json:"customer_id" gorm:"not null"`
 	Customer    Customer            `json:"customer" gorm:"foreignKey:CustomerID"`
+	WarehouseID uint                `json:"warehouse_id" gorm:"not null;index"`
+	Warehouse   Warehouse           `json:"warehouse" gorm:"foreignKey:WarehouseID"`
 	TotalAmount float64             `json:"total_amount" gorm:"type:decimal(12,2);default:0"`
 	Status      string              `json:"status" gorm:"size:32;default:draft"`
 	Remark      string              `json:"remark" gorm:"type:text"`
