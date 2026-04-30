@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Buy-Demo ERP管理系统</title>
   <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <script src="https://unpkg.com/echarts@5.4.3/dist/echarts.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; background: #f0f2f5; }
@@ -88,39 +89,47 @@
         <!-- Dashboard -->
         <div v-if="activeMenu === 'dashboard'">
           <div class="page-title">📊 仪表盘</div>
-          <el-row :gutter="20" style="margin-bottom:20px">
-            <el-col :span="4" v-for="(stat, idx) in dashboardStats" :key="idx">
-              <el-card class="stat-card" shadow="hover">
-                <div class="stat-number" :style="{color: stat.color || '#409eff'}">{{ stat.value }}</div>
-                <div class="stat-label">{{ stat.label }}</div>
+          <el-row :gutter="16" style="margin-bottom:20px">
+            <el-col :span="3" v-for="(stat, idx) in dashboardStats" :key="idx" v-if="stat.value !== undefined && stat.value !== null && ['customers','suppliers','products','today_orders','today_sales'].includes(stat.key)">
+              <el-card shadow="hover" :body-style="{padding:'12px'}">
+                <div style="text-align:center">
+                  <div style="font-size:24px;font-weight:bold;color:#409eff">{{ stat.value }}</div>
+                  <div style="font-size:12px;color:#909399;margin-top:4px">{{ stat.label }}</div>
+                </div>
               </el-card>
             </el-col>
           </el-row>
-          <el-row :gutter="20">
+          <el-row :gutter="16" style="margin-bottom:20px">
+            <el-col :span="8">
+              <el-card>
+                <div slot="header">🏭 采购单状态分布</div>
+                <div ref="purchaseChart" style="height:240px"></div>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card>
+                <div slot="header">📦 销售单状态分布</div>
+                <div ref="salesChart" style="height:240px"></div>
+              </el-card>
+            </el-col>
+            <el-col :span="8">
+              <el-card>
+                <div slot="header">💰 财务概览</div>
+                <div ref="financeChart" style="height:240px"></div>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-row :gutter="16">
             <el-col :span="12">
               <el-card>
-                <div slot="header"><span>采购单状态分布</span></div>
-                <el-table :data="orderStatusData" stripe size="small" empty-text="暂无数据">
-                  <el-table-column prop="status" label="状态" width="200">
-                    <template slot-scope="s">
-                      <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="count" label="数量" width="200"></el-table-column>
-                </el-table>
+                <div slot="header">📈 月度收支趋势</div>
+                <div ref="trendChart" style="height:280px"></div>
               </el-card>
             </el-col>
             <el-col :span="12">
               <el-card>
-                <div slot="header"><span>销售单状态分布</span></div>
-                <el-table :data="salesOrderStatusData" stripe size="small" empty-text="暂无数据">
-                  <el-table-column prop="status" label="状态" width="200">
-                    <template slot-scope="s">
-                      <el-tag :type="soStatusTagType(s.row.status)" size="small">{{ soStatusLabel(s.row.status) }}</el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="count" label="数量" width="200"></el-table-column>
-                </el-table>
+                <div slot="header">⚠️ 库存预警</div>
+                <div ref="stockChart" style="height:280px"></div>
               </el-card>
             </el-col>
           </el-row>
@@ -284,6 +293,7 @@
             <el-input v-model="supplierKeyword" placeholder="搜索编码/名称/联系人" style="width:260px" size="small" clearable @clear="fetchSuppliers" @keyup.enter="fetchSuppliers"></el-input>
             <el-button type="primary" size="small" @click="fetchSuppliers">搜索</el-button>
             <el-button type="success" size="small" @click="openSupplierDialog()">+ 新增供应商</el-button>
+            <el-button size="small" @click="openImportDialog('supplier')"><i class="el-icon-upload2"></i>导入</el-button>
           </div>
           <el-table :data="supplierList" stripe v-loading="supplierLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="code" label="编码" width="120"></el-table-column>
@@ -352,6 +362,7 @@
             <el-input v-model="productKeyword" placeholder="搜索编码/名称/规格" style="width:260px" size="small" clearable @clear="fetchProducts" @keyup.enter="fetchProducts"></el-input>
             <el-button type="primary" size="small" @click="fetchProducts">搜索</el-button>
             <el-button type="success" size="small" @click="openProductDialog()">+ 新增商品</el-button>
+            <el-button size="small" @click="openImportDialog('product')"><i class="el-icon-upload2"></i>导入</el-button>
           </div>
           <el-table :data="productList" stripe v-loading="productLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="code" label="编码" width="120"></el-table-column>
@@ -1237,6 +1248,29 @@
     </div>
   </el-dialog>
 
+  <!-- Import Dialog -->
+  <el-dialog :title="importDialogTitle" :visible.sync="importDialogVisible" width="500px" :close-on-click-modal="false">
+    <div style="margin-bottom:16px">
+      <p style="margin-bottom:12px">请选择 {{ importType==='product'?'商品':'供应商' }} Excel/CSV 文件导入。</p>
+      <p style="font-size:12px;color:#909399;margin-bottom:12px">
+        {{ importType==='product'?'CSV格式：编码,名称,分类,单位,规格,参考单价':'CSV格式：编码,名称,联系人,电话,地址' }}
+      </p>
+      <input type="file" id="importFileInput" accept=".csv,.xlsx" style="display:none" @change="handleFileSelected">
+      <el-button type="primary" @click="document.getElementById('importFileInput').click()" size="small">选择文件</el-button>
+      <span style="margin-left:12px;color:#606266" v-if="importFileName">{{ importFileName }}</span>
+    </div>
+    <div v-if="importPreview.length > 0">
+      <p style="margin-bottom:8px;font-weight:bold">预览（前3行）：</p>
+      <el-table :data="importPreview" stripe size="mini" max-height="200">
+        <el-table-column v-for="(col,idx) in importPreviewColumns" :key="idx" :prop="col.prop" :label="col.label" min-width="100"></el-table-column>
+      </el-table>
+    </div>
+    <div slot="footer">
+      <el-button @click="importDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="submitImport" :loading="importSaving" size="small" :disabled="importPreview.length===0">确认导入</el-button>
+    </div>
+  </el-dialog>
+
   <!-- Customer Detail Dialog -->
   <el-dialog title="客户详情" :visible.sync="customerDetailVisible" width="800px" :close-on-click-modal="false">
     <div v-if="customerDetailData">
@@ -1525,6 +1559,16 @@ new Vue({
       // Customer Detail
       customerDetailVisible: false,
       customerDetailData: null,
+
+      // Import
+      importDialogVisible: false,
+      importType: 'product',
+      importFile: null,
+      importFileName: '',
+      importPreview: [],
+      importPreviewColumns: [],
+      importSaving: false,
+      importDialogTitle: '导入数据',
     };
   },
   computed: {
@@ -1597,6 +1641,9 @@ new Vue({
           {key:'order_status', label:'采购单状态', value:d.order_status},
           {key:'sales_order_status', label:'销售单状态', value:d.sales_order_status},
         ];
+        // Fetch supporting data for charts
+        this.fetchInventoryReport();
+        this.renderCharts();
       } catch (e) { this.$message.error('获取仪表盘数据失败'); }
     },
 
@@ -2341,6 +2388,210 @@ new Vue({
         this.customerDetailData = res.data.data;
         this.customerDetailVisible = true;
       } catch (e) { this.$message.error('获取客户详情失败'); }
+    },
+
+    // === IMPORT ===
+    openImportDialog(type) {
+      this.importType = type;
+      this.importDialogTitle = type === 'product' ? '导入商品' : '导入供应商';
+      this.importFile = null;
+      this.importFileName = '';
+      this.importPreview = [];
+      this.importPreviewColumns = [];
+      this.importDialogVisible = true;
+      // Reset file input
+      const el = document.getElementById('importFileInput');
+      if (el) el.value = '';
+    },
+    handleFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      this.importFile = file;
+      this.importFileName = file.name;
+      
+      // Parse CSV preview
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) {
+          this.$message.warning('文件内容不足');
+          return;
+        }
+        const headers = lines[0].split(',').map(h => h.trim());
+        
+        if (this.importType === 'product') {
+          this.importPreviewColumns = headers.map((h, i) => ({
+            prop: 'col'+i,
+            label: ['编码','名称','分类','单位','规格','参考单价'][i] || h
+          }));
+        } else {
+          this.importPreviewColumns = headers.map((h, i) => ({
+            prop: 'col'+i,
+            label: ['编码','名称','联系人','电话','地址'][i] || h
+          }));
+        }
+        
+        // Parse first 3 data rows for preview
+        this.importPreview = [];
+        for (let i = 1; i < Math.min(lines.length, 4); i++) {
+          const cols = lines[i].split(',').map(c => c.trim());
+          const row = {};
+          headers.forEach((h, idx) => { row['col'+idx] = cols[idx] || ''; });
+          this.importPreview.push(row);
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    },
+    async submitImport() {
+      if (!this.importFile) return this.$message.warning('请选择文件');
+      this.importSaving = true;
+      try {
+        const formData = new FormData();
+        formData.append('file', this.importFile);
+        formData.append('type', this.importType);
+        
+        // Read file and send as JSON array
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          const text = ev.target.result;
+          const lines = text.split('\n').filter(l => l.trim());
+          if (lines.length < 2) {
+            this.$message.warning('文件内容不足');
+            this.importSaving = false;
+            return;
+          }
+          const headers = lines[0].split(',').map(h => h.trim());
+          const data = [];
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',').map(c => c.trim());
+            if (cols.length < 2) continue;
+            const item = {};
+            headers.forEach((h, idx) => { item[h] = cols[idx] || ''; });
+            data.push(item);
+          }
+          
+          try {
+            const url = this.importType === 'product' ? '/products/import' : '/suppliers/import';
+            const res = await api.post(url, {data: data});
+            this.$message.success('导入成功：'+ (res.data.count || data.length) + '条');
+            this.importDialogVisible = false;
+            if (this.importType === 'product') this.fetchProducts();
+            else this.fetchSuppliers();
+          } catch (e) {
+            this.$message.error(e.response?.data?.error || '导入失败');
+          }
+          this.importSaving = false;
+        };
+        reader.readAsText(this.importFile, 'UTF-8');
+      } catch (e) {
+        this.$message.error('导入失败');
+        this.importSaving = false;
+      }
+    },
+
+    // === CHARTS ===
+    renderCharts() {
+      this.$nextTick(() => {
+        // Purchase chart
+        const orderData = this.dashboardStats.find(s => s.key === 'order_status');
+        if (orderData && orderData.value && orderData.value.length > 0 && this.$refs.purchaseChart) {
+          const chart = echarts.init(this.$refs.purchaseChart);
+          chart.setOption({
+            tooltip: {trigger:'item', formatter:'{b}: {c}'},
+            series: [{
+              type:'pie', radius:['40%','70%'],
+              data: orderData.value.map(d => ({
+                name: this.statusLabel(d.status)+'('+d.count+')',
+                value: d.count
+              })),
+              label: {show:true, formatter:'{b}', fontSize:11},
+              color: ['#909399','#e6a23c','#67c23a','#f56c6c','#409eff']
+            }]
+          });
+        }
+        
+        // Sales chart
+        const salesData = this.dashboardStats.find(s => s.key === 'sales_order_status');
+        if (salesData && salesData.value && salesData.value.length > 0 && this.$refs.salesChart) {
+          const chart = echarts.init(this.$refs.salesChart);
+          chart.setOption({
+            tooltip: {trigger:'item', formatter:'{b}: {c}'},
+            series: [{
+              type:'pie', radius:['40%','70%'],
+              data: salesData.value.map(d => ({
+                name: this.soStatusLabel(d.status)+'('+d.count+')',
+                value: d.count
+              })),
+              label: {show:true, formatter:'{b}', fontSize:11},
+              color: ['#909399','#e6a23c','#67c23a','#f56c6c','#409eff']
+            }]
+          });
+        }
+        
+        // Finance chart
+        const apAmount = this.dashboardStats.find(s => s.key === 'ap_amount');
+        const arAmount = this.dashboardStats.find(s => s.key === 'ar_amount');
+        if (this.$refs.financeChart) {
+          const chart = echarts.init(this.$refs.financeChart);
+          chart.setOption({
+            tooltip: {trigger:'axis'},
+            xAxis: {type:'category', data:['应付未付','应收未收']},
+            yAxis: {type:'value', axisLabel:{formatter:'{value}万'}},
+            series: [{
+              type:'bar',
+              data: [
+                {value: parseFloat(apAmount?.value||0), itemStyle:{color:'#f56c6c'}},
+                {value: parseFloat(arAmount?.value||0), itemStyle:{color:'#67c23a'}}
+              ],
+              barWidth:'40%',
+              label:{show:true, position:'top', formatter:'{c}万'}
+            }]
+          });
+        }
+        
+        // Trend chart - use finance monthly data
+        if (this.financeMonthlyData && this.financeMonthlyData.length > 0 && this.$refs.trendChart) {
+          const chart = echarts.init(this.$refs.trendChart);
+          const months = this.financeMonthlyData.map(d => d.month+'月');
+          const income = this.financeMonthlyData.map(d => d.income);
+          const expense = this.financeMonthlyData.map(d => d.expense);
+          chart.setOption({
+            tooltip: {trigger:'axis'},
+            legend: {data:['收入','支出'], top:0},
+            xAxis: {type:'category', data: months},
+            yAxis: {type:'value', axisLabel:{formatter:'¥{value}'}},
+            series: [
+              {name:'收入', type:'line', data: income, smooth:true, lineStyle:{color:'#67c23a'}, areaStyle:{color:'rgba(103,194,58,0.1)'}},
+              {name:'支出', type:'line', data: expense, smooth:true, lineStyle:{color:'#f56c6c'}, areaStyle:{color:'rgba(245,108,108,0.1)'}}
+            ]
+          });
+        }
+        
+        // Stock warning chart - use inventory report data
+        if (this.inventoryReportData && this.inventoryReportData.details && this.$refs.stockChart) {
+          const items = this.inventoryReportData.details;
+          const lowStock = items.filter(i => i.status === 'low_stock').length;
+          const outOfStock = items.filter(i => i.status === 'out_of_stock').length;
+          const normal = items.filter(i => i.status === 'normal').length;
+          const chart = echarts.init(this.$refs.stockChart);
+          chart.setOption({
+            tooltip: {trigger:'item', formatter:'{b}: {c}'},
+            series: [{
+              type:'pie', radius:['30%','60%'],
+              data: [
+                {name:'正常('+normal+')', value:normal, itemStyle:{color:'#67c23a'}},
+                {name:'低库存('+lowStock+')', value:lowStock, itemStyle:{color:'#e6a23c'}},
+                {name:'缺货('+outOfStock+')', value:outOfStock, itemStyle:{color:'#f56c6c'}}
+              ],
+              label: {show:true, formatter:'{b}', fontSize:11}
+            }]
+          });
+        }
+        
+        // Also fetch finance data for trend chart
+        this.fetchFinanceSummary();
+      });
     },
 
     // === UTILS ===

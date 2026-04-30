@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -169,4 +170,50 @@ func GetSupplierOrders(c *gin.Context) {
 			"order_count": len(orders),
 		},
 	})
+}
+
+func ImportSuppliers(c *gin.Context) {
+	var req struct {
+		Data []struct {
+			Code          string `json:"编码"`
+			Name          string `json:"名称"`
+			ContactPerson string `json:"联系人"`
+			Phone         string `json:"电话"`
+			Address       string `json:"地址"`
+		} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "数据格式错误: " + err.Error()})
+		return
+	}
+
+	var success, fail int
+	for _, item := range req.Data {
+		if item.Code == "" || item.Name == "" {
+			fail++
+			continue
+		}
+		var count int64
+		database.DB.Model(&models.Supplier{}).Where("code = ?", item.Code).Count(&count)
+		if count > 0 {
+			fail++
+			continue
+		}
+		supplier := models.Supplier{
+			Code:          item.Code,
+			Name:          item.Name,
+			ContactPerson: item.ContactPerson,
+			Phone:         item.Phone,
+			Address:       item.Address,
+			Status:        1,
+		}
+		if err := database.DB.Create(&supplier).Error; err != nil {
+			fail++
+			continue
+		}
+		success++
+	}
+
+	middlewares.SimpleLog(c, "import", "supplier", 0, "导入供应商: 成功"+fmt.Sprintf("%d", success)+"条, 失败"+fmt.Sprintf("%d", fail)+"条")
+	c.JSON(http.StatusOK, gin.H{"message": "导入完成", "count": success, "fail": fail})
 }

@@ -33,6 +33,7 @@ func Setup() *gin.Engine {
 			auth.POST("/suppliers", middlewares.LogOperation("create", "supplier", 0, "新增供应商"), handlers.CreateSupplier)
 			auth.PUT("/suppliers/:id", handlers.UpdateSupplier)
 			auth.DELETE("/suppliers/:id", handlers.DeleteSupplier)
+			auth.POST("/suppliers/import", middlewares.LogOperation("import", "supplier", 0, "导入供应商"), handlers.ImportSuppliers)
 
 			// Products
 			auth.GET("/products", handlers.GetProducts)
@@ -43,6 +44,7 @@ func Setup() *gin.Engine {
 			auth.POST("/products", middlewares.LogOperation("create", "product", 0, "新增商品"), handlers.CreateProduct)
 			auth.PUT("/products/:id", handlers.UpdateProduct)
 			auth.DELETE("/products/:id", handlers.DeleteProduct)
+			auth.POST("/products/import", middlewares.LogOperation("import", "product", 0, "导入商品"), handlers.ImportProducts)
 
 			// Purchase Orders
 			auth.GET("/purchase-orders", handlers.GetPurchaseOrders)

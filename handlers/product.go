@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -232,4 +233,55 @@ func GetProductDetail(c *gin.Context) {
 			"inventory_logs": logs,
 		},
 	})
+}
+
+func ImportProducts(c *gin.Context) {
+	var req struct {
+		Data []struct {
+			Code     string  `json:"编码"`
+			Name     string  `json:"名称"`
+			Category string  `json:"分类"`
+			Unit     string  `json:"单位"`
+			Spec     string  `json:"规格"`
+			Price    float64 `json:"参考单价"`
+		} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "数据格式错误: " + err.Error()})
+		return
+	}
+
+	var success, fail int
+	for _, item := range req.Data {
+		if item.Code == "" || item.Name == "" {
+			fail++
+			continue
+		}
+		// Check if code exists
+		var count int64
+		database.DB.Model(&models.Product{}).Where("code = ?", item.Code).Count(&count)
+		if count > 0 {
+			fail++
+			continue
+		}
+		product := models.Product{
+			Code:     item.Code,
+			Name:     item.Name,
+			Category: item.Category,
+			Unit:     item.Unit,
+			Spec:     item.Spec,
+			Price:    item.Price,
+			Status:   1,
+		}
+		if err := database.DB.Create(&product).Error; err != nil {
+			fail++
+			continue
+		}
+		// Auto create inventory
+		database.DB.Create(&models.Inventory{ProductID: product.ID, Quantity: 0})
+		success++
+	}
+
+	middlewares.SimpleLog(c, "import", "product", 0, "导入商品: 成功"+fmt.Sprintf("%d", success)+"条, 失败"+fmt.Sprintf("%d", fail)+"条")
+	c.JSON(http.StatusOK, gin.H{"message": "导入完成", "count": success, "fail": fail})
 }
