@@ -1,0 +1,19 @@
+# Binary
+buydemo.exe
+buydemo
+*_test.exe
+
+# Data
+data/
+*.db
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.txt

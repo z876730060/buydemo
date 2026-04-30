@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buy-Demo ERP管理系统</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif; background: #f0f2f5; }
+    .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: #2c3e50; }
+    .login-card { width: 400px; padding: 40px; background: #fff; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+    .login-title { text-align: center; font-size: 24px; color: #303133; margin-bottom: 30px; }
+    .login-title small { font-size: 14px; color: #909399; display: block; margin-top: 8px; }
+    .el-header { background: #fff; border-bottom: 1px solid #e4e7ed; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; height: 60px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .header-title { font-size: 18px; font-weight: bold; color: #303133; }
+    .header-user { display: flex; align-items: center; gap: 12px; color: #606266; }
+    .el-aside { background: #304156; overflow-y: auto; }
+    .el-aside .el-menu { border-right: none; }
+    .el-main { background: #f0f2f5; padding: 20px; height: calc(100vh - 60px); overflow-y: auto; }
+    .page-title { font-size: 18px; color: #303133; margin-bottom: 20px; }
+    .search-bar { margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .stat-card { text-align: center; cursor: pointer; transition: transform .2s; }
+    .stat-card:hover { transform: translateY(-4px); }
+    .stat-number { font-size: 32px; font-weight: bold; color: #409eff; }
+    .stat-label { font-size: 14px; color: #909399; margin-top: 8px; }
+    .el-dialog__body { padding: 20px 20px; }
+    .status-tag { font-size: 12px; }
+    /* Print styles */
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Login -->
+  <div v-if="!isLoggedIn" class="login-container">
+    <div class="login-card">
+      <div class="login-title">
+        Buy-Demo ERP
+        <small>采购管理系统</small>
+      </div>
+      <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" @keyup.enter="handleLogin">
+        <el-form-item prop="username">
+          <el-input v-model="loginForm.username" placeholder="用户名" prefix-icon="el-icon-user" size="large"></el-input>
+        </el-form-item>
+        <el-form-item prop="password">
+          <el-input v-model="loginForm.password" type="password" placeholder="密码" prefix-icon="el-icon-lock" size="large" show-password></el-input>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleLogin" :loading="loginLoading" style="width:100%" size="large">登 录</el-button>
+        </el-form-item>
+        <div style="text-align:center;color:#909399;font-size:12px">默认账号: admin / admin123</div>
+      </el-form>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <el-container v-else style="height:100vh">
+    <!-- Header -->
+    <el-header class="no-print">
+      <div class="header-title">📦 Buy-Demo ERP 采购管理系统</div>
+      <div class="header-user">
+        <span>{{ currentUser.real_name || currentUser.username }}</span>
+        <el-tag v-if="currentUser.role==='admin'" size="small" type="warning">管理员</el-tag>
+        <el-button size="small" @click="openChangePasswordDialog" type="text">修改密码</el-button>
+        <el-button size="small" @click="handleLogout" type="text">退出</el-button>
+      </div>
+    </el-header>
+    <el-container style="height: calc(100vh - 60px)">
+      <!-- Sidebar -->
+      <el-aside width="200px" class="no-print">
+        <el-menu :default-active="activeMenu" background-color="#304156" text-color="#bfcbd9" active-text-color="#409eff" @select="handleMenuSelect">
+          <el-menu-item index="dashboard"><i class="el-icon-s-data"></i>仪表盘</el-menu-item>
+          <el-menu-item index="suppliers"><i class="el-icon-s-hop"></i>供应商管理</el-menu-item>
+          <el-menu-item index="products"><i class="el-icon-goods"></i>商品管理</el-menu-item>
+          <el-menu-item index="purchase-orders"><i class="el-icon-document-copy"></i>采购单管理</el-menu-item>
+          <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
+          <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
+        </el-menu>
+      </el-aside>
+      <!-- Main Content -->
+      <el-main>
+        <!-- Dashboard -->
+        <div v-if="activeMenu === 'dashboard'">
+          <div class="page-title">📊 仪表盘</div>
+          <el-row :gutter="20" style="margin-bottom:20px">
+            <el-col :span="4" v-for="(stat, idx) in dashboardStats" :key="idx">
+              <el-card class="stat-card" shadow="hover">
+                <div class="stat-number">{{ stat.value }}</div>
+                <div class="stat-label">{{ stat.label }}</div>
+              </el-card>
+            </el-col>
+          </el-row>
+          <el-card>
+            <div slot="header"><span>采购单状态分布</span></div>
+            <el-table :data="orderStatusData" stripe size="small" empty-text="暂无数据">
+              <el-table-column prop="status" label="状态" width="200">
+                <template slot-scope="s">
+                  <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="count" label="数量" width="200"></el-table-column>
+            </el-table>
+          </el-card>
+        </div>
+
+        <!-- Suppliers -->
+        <div v-if="activeMenu === 'suppliers'">
+          <div class="page-title">🏢 供应商管理</div>
+          <div class="search-bar">
+            <el-input v-model="supplierKeyword" placeholder="搜索编码/名称/联系人" style="width:260px" size="small" clearable @clear="fetchSuppliers" @keyup.enter="fetchSuppliers"></el-input>
+            <el-button type="primary" size="small" @click="fetchSuppliers">搜索</el-button>
+            <el-button type="success" size="small" @click="openSupplierDialog()">+ 新增供应商</el-button>
+          </div>
+          <el-table :data="supplierList" stripe v-loading="supplierLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="code" label="编码" width="120"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="contact_person" label="联系人" width="120"></el-table-column>
+            <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="s.row.status===1?'success':'danger'" size="small">{{ s.row.status===1?'启用':'禁用' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openSupplierDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" @click="deleteSupplier(s.row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="supplierTotal" :page-size="20" :current-page="supplierPage" layout="total,prev,pager,next" @current-change="p=>{supplierPage=p;fetchSuppliers()}"></el-pagination>
+          </div>
+        </div>
+
+        <!-- Products -->
+        <div v-if="activeMenu === 'products'">
+          <div class="page-title">📦 商品管理</div>
+          <div class="search-bar">
+            <el-input v-model="productKeyword" placeholder="搜索编码/名称/规格" style="width:260px" size="small" clearable @clear="fetchProducts" @keyup.enter="fetchProducts"></el-input>
+            <el-button type="primary" size="small" @click="fetchProducts">搜索</el-button>
+            <el-button type="success" size="small" @click="openProductDialog()">+ 新增商品</el-button>
+          </div>
+          <el-table :data="productList" stripe v-loading="productLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="code" label="编码" width="120"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="category" label="分类" width="100"></el-table-column>
+            <el-table-column prop="unit" label="单位" width="60"></el-table-column>
+            <el-table-column prop="spec" label="规格" width="120"></el-table-column>
+            <el-table-column prop="price" label="参考单价" width="100">
+              <template slot-scope="s">¥{{ s.row.price.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s"><el-tag :type="s.row.status===1?'success':'danger'" size="small">{{ s.row.status===1?'启用':'禁用' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openProductDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" @click="deleteProduct(s.row.id)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="productTotal" :page-size="20" :current-page="productPage" layout="total,prev,pager,next" @current-change="p=>{productPage=p;fetchProducts()}"></el-pagination>
+          </div>
+        </div>
+
+        <!-- Purchase Orders -->
+        <div v-if="activeMenu === 'purchase-orders'">
+          <div class="page-title">📋 采购单管理</div>
+          <div class="search-bar">
+            <el-input v-model="poKeyword" placeholder="搜索单号/供应商" style="width:260px" size="small" clearable @clear="fetchPurchaseOrders" @keyup.enter="fetchPurchaseOrders"></el-input>
+            <el-select v-model="poStatusFilter" placeholder="状态筛选" style="width:140px" size="small" clearable @change="fetchPurchaseOrders">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="草稿" value="draft"></el-option>
+              <el-option label="已审核" value="approved"></el-option>
+              <el-option label="已入库" value="received"></el-option>
+              <el-option label="已取消" value="cancelled"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" @click="fetchPurchaseOrders">搜索</el-button>
+            <el-button type="success" size="small" @click="openOrderDialog()">+ 新建采购单</el-button>
+          </div>
+          <el-table :data="poList" stripe v-loading="poLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="order_no" label="采购单号" width="160"></el-table-column>
+            <el-table-column prop="supplier.name" label="供应商" min-width="150"></el-table-column>
+            <el-table-column prop="total_amount" label="总金额" width="120">
+              <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template slot-scope="s">
+                <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160">
+              <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="240" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="viewOrder(s.row)">详情</el-button>
+                <el-button size="mini" type="primary" v-if="s.row.status==='draft'" @click="editOrder(s.row)">编辑</el-button>
+                <el-button size="mini" type="warning" v-if="s.row.status==='draft'" @click="approveOrder(s.row.id)">审核</el-button>
+                <el-button size="mini" type="success" v-if="s.row.status==='approved'" @click="receiveOrder(s.row.id)">入库</el-button>
+                <el-button size="mini" type="danger" v-if="s.row.status==='draft'||s.row.status==='approved'" @click="cancelOrder(s.row.id)">取消</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="poTotal" :page-size="20" :current-page="poPage" layout="total,prev,pager,next" @current-change="p=>{poPage=p;fetchPurchaseOrders()}"></el-pagination>
+          </div>
+        </div>
+
+        <!-- Inventory -->
+        <div v-if="activeMenu === 'inventory'">
+          <div class="page-title">📊 库存管理</div>
+          <el-tabs v-model="inventoryTab">
+            <el-tab-pane label="库存台账" name="list">
+              <div class="search-bar">
+                <el-input v-model="invKeyword" placeholder="搜索商品名称/编码" style="width:260px" size="small" clearable @clear="fetchInventories" @keyup.enter="fetchInventories"></el-input>
+                <el-button type="primary" size="small" @click="fetchInventories">搜索</el-button>
+                <el-button type="warning" size="small" @click="fetchLowStock">低库存预警</el-button>
+              </div>
+              <el-table :data="invList" stripe v-loading="invLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="product.code" label="编码" width="120"></el-table-column>
+                <el-table-column prop="product.name" label="商品名称" min-width="160"></el-table-column>
+                <el-table-column prop="product.spec" label="规格" width="120"></el-table-column>
+                <el-table-column prop="product.unit" label="单位" width="60"></el-table-column>
+                <el-table-column prop="quantity" label="库存数量" width="120">
+                  <template slot-scope="s">
+                    <span :style="{color: s.row.quantity <= 10 ? '#f56c6c' : '#67c23a', fontWeight:'bold'}">{{ s.row.quantity }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="状态" width="100">
+                  <template slot-scope="s">
+                    <el-tag v-if="s.row.quantity <= 0" type="danger" size="small">缺货</el-tag>
+                    <el-tag v-else-if="s.row.quantity <= 10" type="warning" size="small">低库存</el-tag>
+                    <el-tag v-else type="success" size="small">正常</el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="invTotal" :page-size="20" :current-page="invPage" layout="total,prev,pager,next" @current-change="p=>{invPage=p;fetchInventories()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="库存流水" name="logs">
+              <div class="search-bar">
+                <el-input v-model="invLogProductId" placeholder="商品ID" style="width:180px" size="small"></el-input>
+                <el-button type="primary" size="small" @click="fetchInventoryLogs">查询</el-button>
+              </div>
+              <el-table :data="invLogList" stripe v-loading="invLogLoading" size="small" empty-text="暂无数据">
+                <el-table-column prop="product.name" label="商品" min-width="160"></el-table-column>
+                <el-table-column prop="type" label="类型" width="80">
+                  <template slot-scope="s">
+                    <el-tag :type="s.row.type==='in'?'success':'danger'" size="small">{{ s.row.type==='in'?'入库':'出库' }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="quantity" label="数量" width="100"></el-table-column>
+                <el-table-column prop="balance" label="结存" width="100"></el-table-column>
+                <el-table-column prop="reference_type" label="来源" width="100">
+                  <template slot-scope="s">{{ s.row.reference_type==='purchase'?'采购入库':'调整' }}</template>
+                </el-table-column>
+                <el-table-column prop="remark" label="备注" min-width="160"></el-table-column>
+                <el-table-column prop="created_at" label="时间" width="160">
+                  <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="invLogTotal" :page-size="20" :current-page="invLogPage" layout="total,prev,pager,next" @current-change="p=>{invLogPage=p;fetchInventoryLogs()}"></el-pagination>
+              </div>
+            </el-tab-pane>
+          </el-tabs>
+        <!-- Users Management -->
+        <div v-if="activeMenu === 'users'">
+          <div class="page-title">👤 用户管理</div>
+          <div class="search-bar">
+            <el-input v-model="userKeyword" placeholder="搜索用户名/姓名" style="width:260px" size="small" clearable @clear="fetchUsers" @keyup.enter="fetchUsers"></el-input>
+            <el-button type="primary" size="small" @click="fetchUsers">搜索</el-button>
+            <el-button type="success" size="small" @click="openUserDialog()">+ 新增用户</el-button>
+          </div>
+          <el-table :data="userList" stripe v-loading="userLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="username" label="用户名" width="140"></el-table-column>
+            <el-table-column prop="real_name" label="姓名" min-width="120"></el-table-column>
+            <el-table-column prop="role" label="角色" width="100">
+              <template slot-scope="s">
+                <el-tag :type="s.row.role==='admin'?'warning':'primary'" size="small">{{ s.row.role==='admin'?'管理员':'操作员' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160"></el-table-column>
+            <el-table-column label="操作" width="240" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="openUserDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="warning" @click="resetUserPassword(s.row)">重置密码</el-button>
+                <el-button size="mini" type="danger" :disabled="s.row.id===currentUser.id" @click="deleteUser(s.row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="userTotal" :page-size="20" :current-page="userPage" layout="total,prev,pager,next" @current-change="p=>{userPage=p;fetchUsers()}"></el-pagination>
+          </div>
+        </div>
+      </el-main>
+    </el-container>
+  </el-container>
+
+  <!-- Supplier Dialog -->
+  <el-dialog :title="supplierForm.id?'编辑供应商':'新增供应商'" :visible.sync="supplierDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="supplierForm" label-width="100px" size="small">
+      <el-form-item label="编码" required>
+        <el-input v-model="supplierForm.code" placeholder="供应商编码"></el-input>
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="supplierForm.name" placeholder="供应商名称"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人">
+        <el-input v-model="supplierForm.contact_person"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话">
+        <el-input v-model="supplierForm.phone"></el-input>
+      </el-form-item>
+      <el-form-item label="地址">
+        <el-input v-model="supplierForm.address" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="supplierForm.statusBool" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="supplierDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveSupplier" :loading="supplierSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Product Dialog -->
+  <el-dialog :title="productForm.id?'编辑商品':'新增商品'" :visible.sync="productDialogVisible" width="500px" :close-on-click-modal="false">
+    <el-form :model="productForm" label-width="100px" size="small">
+      <el-form-item label="编码" required>
+        <el-input v-model="productForm.code" placeholder="商品编码"></el-input>
+      </el-form-item>
+      <el-form-item label="名称" required>
+        <el-input v-model="productForm.name" placeholder="商品名称"></el-input>
+      </el-form-item>
+      <el-form-item label="分类">
+        <el-input v-model="productForm.category" placeholder="如：原材料/包材/成品"></el-input>
+      </el-form-item>
+      <el-form-item label="单位">
+        <el-select v-model="productForm.unit" style="width:100%">
+          <el-option label="个" value="个"></el-option>
+          <el-option label="件" value="件"></el-option>
+          <el-option label="箱" value="箱"></el-option>
+          <el-option label="公斤" value="公斤"></el-option>
+          <el-option label="米" value="米"></el-option>
+          <el-option label="升" value="升"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="规格">
+        <el-input v-model="productForm.spec" placeholder="规格型号"></el-input>
+      </el-form-item>
+      <el-form-item label="参考单价">
+        <el-input v-model="productForm.price" type="number" step="0.01" min="0">
+          <template slot="prepend">¥</template>
+        </el-input>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="productForm.statusBool" active-color="#409eff" inactive-color="#c0c4cc"></el-switch>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="productDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveProduct" :loading="productSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Purchase Order Detail Dialog -->
+  <el-dialog title="采购单详情" :visible.sync="orderDetailVisible" width="700px" :close-on-click-modal="false">
+    <div v-if="orderDetail">
+      <el-descriptions :column="2" border size="small">
+        <el-descriptions-item label="采购单号">{{ orderDetail.order_no }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="statusTagType(orderDetail.status)" size="small">{{ statusLabel(orderDetail.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="供应商">{{ orderDetail.supplier.name }}</el-descriptions-item>
+        <el-descriptions-item label="总金额">¥{{ orderDetail.total_amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ orderDetail.creator ? orderDetail.creator.real_name || orderDetail.creator.username : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDate(orderDetail.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="审核时间" v-if="orderDetail.approved_at">{{ formatDate(orderDetail.approved_at) }}</el-descriptions-item>
+        <el-descriptions-item label="入库时间" v-if="orderDetail.received_at">{{ formatDate(orderDetail.received_at) }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ orderDetail.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <h4 style="margin:16px 0 8px">采购明细</h4>
+      <el-table :data="orderDetail.items" border size="small">
+        <el-table-column prop="product.name" label="商品" min-width="120"></el-table-column>
+        <el-table-column prop="product.spec" label="规格" width="100"></el-table-column>
+        <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+        <el-table-column prop="unit_price" label="单价" width="100">
+          <template slot-scope="s">¥{{ s.row.unit_price.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="amount" label="金额" width="100">
+          <template slot-scope="s">¥{{ s.row.amount.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="received_qty" label="已入库" width="80"></el-table-column>
+      </el-table>
+    </div>
+    <div slot="footer">
+      <el-button @click="orderDetailVisible=false" size="small">关闭</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Create/Edit Order Dialog -->
+  <el-dialog :title="orderForm.id?'编辑采购单':'新建采购单'" :visible.sync="orderDialogVisible" width="800px" :close-on-click-modal="false">
+    <el-form :model="orderForm" label-width="100px" size="small">
+      <el-form-item label="供应商" required>
+        <el-select v-model="orderForm.supplier_id" filterable placeholder="选择供应商" style="width:100%">
+          <el-option v-for="s in supplierOptions" :key="s.id" :label="s.name" :value="s.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="orderForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+    </el-form>
+    <h4 style="margin:0 0 8px 20px">采购明细</h4>
+    <el-table :data="orderForm.items" border size="small" style="margin:0 20px">
+      <el-table-column label="商品" width="240">
+        <template slot-scope="s">
+          <el-select v-model="s.row.product_id" filterable placeholder="选择商品" style="width:100%" @change="(val)=>onItemProductChange(s.$index,val)">
+            <el-option v-for="p in productOptions" :key="p.id" :label="p.name+' ('+p.code+')'" :value="p.id"></el-option>
+          </el-select>
+        </template>
+      </el-table-column>
+      <el-table-column label="数量" width="140">
+        <template slot-scope="s">
+          <el-input-number v-model="s.row.quantity" :min="0.01" :step="1" :precision="2" style="width:120px" size="small" @change="calcOrderTotal"></el-input-number>
+        </template>
+      </el-table-column>
+      <el-table-column label="单价" width="140">
+        <template slot-scope="s">
+          <el-input-number v-model="s.row.unit_price" :min="0" :step="0.01" :precision="2" style="width:120px" size="small" @change="calcOrderTotal"></el-input-number>
+        </template>
+      </el-table-column>
+      <el-table-column label="金额" width="120">
+        <template slot-scope="s">¥{{ (s.row.quantity * s.row.unit_price).toFixed(2) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="60">
+        <template slot-scope="s">
+          <el-button type="danger" icon="el-icon-delete" size="mini" circle @click="orderForm.items.splice(s.$index,1);calcOrderTotal()"></el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <div style="margin:8px 20px 0">
+      <el-button type="text" @click="addOrderItem">+ 添加商品</el-button>
+      <span style="float:right;font-size:16px;font-weight:bold">合计：¥{{ orderTotal.toFixed(2) }}</span>
+    </div>
+    <div slot="footer">
+      <el-button @click="orderDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveOrder" :loading="orderSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+  <!-- User Dialog -->
+  <el-dialog :title="userForm.id?'编辑用户':'新增用户'" :visible.sync="userDialogVisible" width="450px" :close-on-click-modal="false">
+    <el-form :model="userForm" label-width="100px" size="small">
+      <el-form-item label="用户名" required>
+        <el-input v-model="userForm.username" :disabled="!!userForm.id" placeholder="登录用户名"></el-input>
+      </el-form-item>
+      <el-form-item label="密码" v-if="!userForm.id" required>
+        <el-input v-model="userForm.password" type="password" placeholder="至少6位" show-password></el-input>
+      </el-form-item>
+      <el-form-item label="姓名">
+        <el-input v-model="userForm.real_name" placeholder="真实姓名"></el-input>
+      </el-form-item>
+      <el-form-item label="角色">
+        <el-radio-group v-model="userForm.role">
+          <el-radio label="operator">操作员</el-radio>
+          <el-radio label="admin">管理员</el-radio>
+        </el-radio-group>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="userDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveUser" :loading="userSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Change Password Dialog -->
+  <el-dialog title="修改密码" :visible.sync="changePasswordVisible" width="400px" :close-on-click-modal="false">
+    <el-form :model="changePasswordForm" label-width="100px" size="small">
+      <el-form-item label="原密码" required>
+        <el-input v-model="changePasswordForm.old_password" type="password" placeholder="输入原密码" show-password></el-input>
+      </el-form-item>
+      <el-form-item label="新密码" required>
+        <el-input v-model="changePasswordForm.new_password" type="password" placeholder="至少6位" show-password></el-input>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="changePasswordVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="handleChangePassword" :loading="changePasswordLoading" size="small">确认修改</el-button>
+    </div>
+  </el-dialog>
+</div>
+
+<script src="https://unpkg.com/vue@2.7.14/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+const api = axios.create({baseURL: '/api'});
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = 'Bearer ' + token;
+  return config;
+});
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response && err.response.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      location.reload();
+    }
+    return Promise.reject(err);
+  }
+);
+
+new Vue({
+  el: '#app',
+  data() {
+    return {
+      // Auth
+      isLoggedIn: !!localStorage.getItem('token'),
+      currentUser: JSON.parse(localStorage.getItem('user') || '{}'),
+      loginForm: {username: 'admin', password: 'admin123'},
+      loginRules: {
+        username: [{required:true,message:'请输入用户名',trigger:'blur'}],
+        password: [{required:true,message:'请输入密码',trigger:'blur'}]
+      },
+      loginLoading: false,
+
+      // Menu
+      activeMenu: 'dashboard',
+
+      // Dashboard
+      dashboardStats: [],
+
+      // Suppliers
+      supplierList: [],
+      supplierTotal: 0,
+      supplierPage: 1,
+      supplierKeyword: '',
+      supplierLoading: false,
+      supplierDialogVisible: false,
+      supplierForm: {},
+      supplierSaving: false,
+
+      // Products
+      productList: [],
+      productTotal: 0,
+      productPage: 1,
+      productKeyword: '',
+      productLoading: false,
+      productDialogVisible: false,
+      productForm: {},
+      productSaving: false,
+
+      // Purchase Orders
+      poList: [],
+      poTotal: 0,
+      poPage: 1,
+      poKeyword: '',
+      poStatusFilter: '',
+      poLoading: false,
+      orderDetailVisible: false,
+      orderDetail: null,
+      orderDialogVisible: false,
+      orderForm: {supplier_id:'', remark:'', items:[]},
+      orderSaving: false,
+      supplierOptions: [],
+      productOptions: [],
+
+      // Users
+      userList: [],
+      userTotal: 0,
+      userPage: 1,
+      userKeyword: '',
+      userLoading: false,
+      userDialogVisible: false,
+      userForm: {},
+      userSaving: false,
+
+      // Change Password
+      changePasswordVisible: false,
+      changePasswordForm: {old_password:'', new_password:''},
+      changePasswordLoading: false,
+
+      // Inventory
+      inventoryTab: 'list',
+      invList: [],
+      invTotal: 0,
+      invPage: 1,
+      invKeyword: '',
+      invLoading: false,
+      invLogList: [],
+      invLogTotal: 0,
+      invLogPage: 1,
+      invLogProductId: '',
+      invLogLoading: false,
+    };
+  },
+  computed: {
+    orderTotal() {
+      return this.orderForm.items.reduce((sum, item) => sum + (item.quantity||0) * (item.unit_price||0), 0);
+    },
+    orderStatusData() {
+      const data = this.dashboardStats.find(s => s.key === 'order_status');
+      return data ? data.value : [];
+    }
+  },
+  methods: {
+    // === AUTH ===
+    async handleLogin() {
+      this.loginLoading = true;
+      try {
+        const res = await api.post('/auth/login', this.loginForm);
+        localStorage.setItem('token', res.data.token);
+        localStorage.setItem('user', JSON.stringify(res.data.user));
+        this.currentUser = res.data.user;
+        this.isLoggedIn = true;
+        this.fetchDashboard();
+      } catch (e) {
+        this.$message.error(e.response?.data?.error || '登录失败');
+      }
+      this.loginLoading = false;
+    },
+    handleLogout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      this.isLoggedIn = false;
+    },
+    handleMenuSelect(index) {
+      this.activeMenu = index;
+      if (index === 'dashboard') this.fetchDashboard();
+      else if (index === 'suppliers') this.fetchSuppliers();
+      else if (index === 'products') this.fetchProducts();
+      else if (index === 'purchase-orders') this.fetchPurchaseOrders();
+      else if (index === 'users') this.fetchUsers();
+      else if (index === 'inventory') this.fetchInventories();
+    },
+
+    // === DASHBOARD ===
+    async fetchDashboard() {
+      try {
+        const res = await api.get('/dashboard/stats');
+        const d = res.data.data;
+        this.dashboardStats = [
+          {key:'suppliers', label:'供应商', value:d.supplier_count},
+          {key:'products', label:'商品', value:d.product_count},
+          {key:'today_orders', label:'今日采购单', value:d.today_order_count},
+          {key:'low_stock', label:'低库存', value:d.low_stock_count, color:'#e6a23c'},
+          {key:'out_of_stock', label:'缺货', value:d.out_of_stock_count, color:'#f56c6c'},
+          {key:'order_status', label:'采购单状态', value:d.order_status},
+        ];
+      } catch (e) { this.$message.error('获取仪表盘数据失败'); }
+    },
+
+    // === SUPPLIERS ===
+    async fetchSuppliers() {
+      this.supplierLoading = true;
+      try {
+        const res = await api.get('/suppliers', {params:{page:this.supplierPage,page_size:20,keyword:this.supplierKeyword}});
+        this.supplierList = res.data.data;
+        this.supplierTotal = res.data.total;
+      } catch (e) { this.$message.error('获取供应商列表失败'); }
+      this.supplierLoading = false;
+    },
+    openSupplierDialog(row) {
+      if (row) {
+        this.supplierForm = {...row, statusBool: row.status===1};
+      } else {
+        this.supplierForm = {code:'', name:'', contact_person:'', phone:'', address:'', statusBool:true};
+      }
+      this.supplierDialogVisible = true;
+    },
+    async saveSupplier() {
+      if (!this.supplierForm.code || !this.supplierForm.name) {
+        return this.$message.warning('编码和名称为必填项');
+      }
+      this.supplierSaving = true;
+      try {
+        const payload = {...this.supplierForm, status: this.supplierForm.statusBool?1:0};
+        delete payload.statusBool;
+        if (payload.id) {
+          await api.put('/suppliers/'+payload.id, payload);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/suppliers', payload);
+          this.$message.success('创建成功');
+        }
+        this.supplierDialogVisible = false;
+        this.fetchSuppliers();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.supplierSaving = false;
+    },
+    async deleteSupplier(id) {
+      try {
+        await this.$confirm('确认删除该供应商？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/suppliers/'+id);
+        this.$message.success('删除成功');
+        this.fetchSuppliers();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+
+    // === PRODUCTS ===
+    async fetchProducts() {
+      this.productLoading = true;
+      try {
+        const res = await api.get('/products', {params:{page:this.productPage,page_size:20,keyword:this.productKeyword}});
+        this.productList = res.data.data;
+        this.productTotal = res.data.total;
+      } catch (e) { this.$message.error('获取商品列表失败'); }
+      this.productLoading = false;
+    },
+    openProductDialog(row) {
+      if (row) {
+        this.productForm = {...row, statusBool: row.status===1};
+      } else {
+        this.productForm = {code:'', name:'', category:'', unit:'个', spec:'', price:0, statusBool:true};
+      }
+      this.productDialogVisible = true;
+    },
+    async saveProduct() {
+      if (!this.productForm.code || !this.productForm.name) {
+        return this.$message.warning('编码和名称为必填项');
+      }
+      this.productSaving = true;
+      try {
+        const payload = {...this.productForm, status: this.productForm.statusBool?1:0, price: parseFloat(this.productForm.price)||0};
+        delete payload.statusBool;
+        if (payload.id) {
+          await api.put('/products/'+payload.id, payload);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/products', payload);
+          this.$message.success('创建成功');
+        }
+        this.productDialogVisible = false;
+        this.fetchProducts();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.productSaving = false;
+    },
+    async deleteProduct(id) {
+      try {
+        await this.$confirm('确认删除该商品？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/products/'+id);
+        this.$message.success('删除成功');
+        this.fetchProducts();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+
+    // === PURCHASE ORDERS ===
+    async fetchPurchaseOrders() {
+      this.poLoading = true;
+      try {
+        const params = {page:this.poPage, page_size:20, keyword:this.poKeyword};
+        if (this.poStatusFilter) params.status = this.poStatusFilter;
+        const res = await api.get('/purchase-orders', {params});
+        this.poList = res.data.data;
+        this.poTotal = res.data.total;
+      } catch (e) { this.$message.error('获取采购单失败'); }
+      this.poLoading = false;
+    },
+    async viewOrder(row) {
+      try {
+        const res = await api.get('/purchase-orders/'+row.id);
+        this.orderDetail = res.data.data;
+        this.orderDetailVisible = true;
+      } catch (e) { this.$message.error('获取详情失败'); }
+    },
+    async openOrderDialog() {
+      try {
+        const [supRes, prodRes] = await Promise.all([
+          api.get('/suppliers/all'),
+          api.get('/products/all')
+        ]);
+        this.supplierOptions = supRes.data.data;
+        this.productOptions = prodRes.data.data;
+      } catch (e) {}
+      this.orderForm = {id:null, supplier_id:'', remark:'', items:[{product_id:'', quantity:1, unit_price:0}]};
+      this.orderDialogVisible = true;
+    },
+    async editOrder(row) {
+      try {
+        const [supRes, prodRes, orderRes] = await Promise.all([
+          api.get('/suppliers/all'),
+          api.get('/products/all'),
+          api.get('/purchase-orders/'+row.id)
+        ]);
+        this.supplierOptions = supRes.data.data;
+        this.productOptions = prodRes.data.data;
+        const order = orderRes.data.data;
+        this.orderForm = {
+          id: order.id,
+          supplier_id: order.supplier_id,
+          remark: order.remark || '',
+          items: order.items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price
+          }))
+        };
+        this.orderDialogVisible = true;
+      } catch (e) { this.$message.error('获取采购单数据失败'); }
+    },
+    addOrderItem() {
+      this.orderForm.items.push({product_id:'', quantity:1, unit_price:0});
+    },
+    onItemProductChange(index, productId) {
+      const product = this.productOptions.find(p => p.id === productId);
+      if (product) {
+        this.orderForm.items[index].unit_price = product.price;
+      }
+    },
+    calcOrderTotal() {},
+    async saveOrder() {
+      if (!this.orderForm.supplier_id) return this.$message.warning('请选择供应商');
+      if (!this.orderForm.items.length) return this.$message.warning('请添加至少一条采购明细');
+      for (const item of this.orderForm.items) {
+        if (!item.product_id) return this.$message.warning('请选择商品');
+      }
+      this.orderSaving = true;
+      try {
+        const payload = {
+          supplier_id: this.orderForm.supplier_id,
+          remark: this.orderForm.remark,
+          items: this.orderForm.items.map(i => ({
+            product_id: i.product_id,
+            quantity: i.quantity,
+            unit_price: i.unit_price
+          }))
+        };
+        if (this.orderForm.id) {
+          await api.put('/purchase-orders/'+this.orderForm.id, payload);
+          this.$message.success('采购单更新成功');
+        } else {
+          await api.post('/purchase-orders', payload);
+          this.$message.success('采购单创建成功');
+        }
+        this.orderDialogVisible = false;
+        this.fetchPurchaseOrders();
+      } catch (e) { this.$message.error(e.response?.data?.error || '操作失败'); }
+      this.orderSaving = false;
+    },
+    async approveOrder(id) {
+      try {
+        await this.$confirm('确认审核通过该采购单？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'info'});
+        await api.post('/purchase-orders/'+id+'/approve');
+        this.$message.success('审核通过');
+        this.fetchPurchaseOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+    async receiveOrder(id) {
+      try {
+        await this.$confirm('确认将该采购单商品全部入库？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'info'});
+        await api.post('/purchase-orders/'+id+'/receive');
+        this.$message.success('入库成功');
+        this.fetchPurchaseOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+    async cancelOrder(id) {
+      try {
+        await this.$confirm('确认取消该采购单？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.post('/purchase-orders/'+id+'/cancel');
+        this.$message.success('已取消');
+        this.fetchPurchaseOrders();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+
+    // === USERS ===
+    async fetchUsers() {
+      this.userLoading = true;
+      try {
+        const res = await api.get('/users', {params:{page:this.userPage,page_size:20,keyword:this.userKeyword}});
+        this.userList = res.data.data;
+        this.userTotal = res.data.total;
+      } catch (e) { this.$message.error('获取用户列表失败'); }
+      this.userLoading = false;
+    },
+    openUserDialog(row) {
+      if (row) {
+        this.userForm = {id:row.id, username:row.username, real_name:row.real_name, role:row.role};
+      } else {
+        this.userForm = {username:'', password:'', real_name:'', role:'operator'};
+      }
+      this.userDialogVisible = true;
+    },
+    async saveUser() {
+      if (!this.userForm.username) return this.$message.warning('请输入用户名');
+      if (!this.userForm.id && (!this.userForm.password || this.userForm.password.length < 6)) {
+        return this.$message.warning('密码至少6位');
+      }
+      this.userSaving = true;
+      try {
+        if (this.userForm.id) {
+          await api.put('/users/'+this.userForm.id, {real_name:this.userForm.real_name, role:this.userForm.role});
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/users', {username:this.userForm.username, password:this.userForm.password, real_name:this.userForm.real_name, role:this.userForm.role});
+          this.$message.success('创建成功');
+        }
+        this.userDialogVisible = false;
+        this.fetchUsers();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.userSaving = false;
+    },
+    async deleteUser(row) {
+      try {
+        await this.$confirm('确认删除用户「'+row.real_name||row.username+'」？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.delete('/users/'+row.id);
+        this.$message.success('删除成功');
+        this.fetchUsers();
+      } catch (e) { if (e !== 'cancel') this.$message.error('删除失败'); }
+    },
+    async resetUserPassword(row) {
+      try {
+        const { value } = await this.$prompt('请输入新密码（至少6位）', '重置密码 - '+row.username, {confirmButtonText:'确定',cancelButtonText:'取消',inputType:'password',inputPattern:/.{6,}/,inputErrorMessage:'密码至少6位'});
+        await api.post('/users/'+row.id+'/reset-password', {password: value});
+        this.$message.success('密码已重置');
+      } catch (e) { if (e !== 'cancel') this.$message.error('重置失败'); }
+    },
+
+    // === CHANGE PASSWORD ===
+    openChangePasswordDialog() {
+      this.changePasswordForm = {old_password:'', new_password:''};
+      this.changePasswordVisible = true;
+    },
+    async handleChangePassword() {
+      if (!this.changePasswordForm.old_password) return this.$message.warning('请输入原密码');
+      if (!this.changePasswordForm.new_password || this.changePasswordForm.new_password.length < 6) {
+        return this.$message.warning('新密码至少6位');
+      }
+      this.changePasswordLoading = true;
+      try {
+        await api.post('/auth/change-password', this.changePasswordForm);
+        this.$message.success('密码修改成功，请重新登录');
+        this.changePasswordVisible = false;
+        this.handleLogout();
+      } catch (e) { this.$message.error(e.response?.data?.error || '修改失败'); }
+      this.changePasswordLoading = false;
+    },
+
+    // === INVENTORY ===
+    async fetchInventories() {
+      this.invLoading = true;
+      try {
+        const res = await api.get('/inventories', {params:{page:this.invPage,page_size:20,keyword:this.invKeyword}});
+        this.invList = res.data.data;
+        this.invTotal = res.data.total;
+      } catch (e) { this.$message.error('获取库存数据失败'); }
+      this.invLoading = false;
+    },
+    async fetchLowStock() {
+      try {
+        const res = await api.get('/inventories/low-stock', {params:{threshold:10}});
+        this.invList = res.data.data;
+        this.invTotal = res.data.data.length;
+        this.$message.info('显示低库存商品');
+      } catch (e) { this.$message.error('获取预警数据失败'); }
+    },
+    async fetchInventoryLogs() {
+      this.invLogLoading = true;
+      try {
+        const params = {page:this.invLogPage, page_size:20};
+        if (this.invLogProductId) params.product_id = this.invLogProductId;
+        const res = await api.get('/inventories/logs', {params});
+        this.invLogList = res.data.data;
+        this.invLogTotal = res.data.total;
+      } catch (e) { this.$message.error('获取流水数据失败'); }
+      this.invLogLoading = false;
+    },
+
+    // === UTILS ===
+    formatDate(dt) {
+      if (!dt) return '-';
+      const d = new Date(dt);
+      return d.toLocaleString('zh-CN', {hour12:false});
+    },
+    statusLabel(s) {
+      const map = {draft:'草稿', approved:'已审核', received:'已入库', cancelled:'已取消'};
+      return map[s] || s;
+    },
+    statusTagType(s) {
+      const map = {draft:'info', approved:'warning', received:'success', cancelled:'danger'};
+      return map[s] || 'info';
+    },
+  },
+  mounted() {
+    if (this.isLoggedIn) {
+      this.fetchDashboard();
+    }
+  }
+});
+</script>
+</body>
+</html>
