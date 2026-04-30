@@ -3,12 +3,13 @@
 > **项目定位**：轻量级ERP系统，覆盖采购→库存→销售→财务全链路
 > **技术栈**：Go + Gin + GORM + SQLite + Vue.js(CDN) + Element UI + JWT + ECharts
 > **架构风格**：前后端分离（SPA），RESTful API
-> **版本**：v2.0 | **更新**：2026-05-01
+> **版本**：v2.1 | **更新**：2026-05-01
 
 ---
 
 ## 快速开始
 
+### 本地运行
 ```bash
 git clone https://github.com/z876730060/buydemo.git
 cd buydemo
@@ -16,6 +17,13 @@ go build -o buydemo.exe .
 ./buydemo.exe
 # 访问 http://localhost:8080
 # 默认账号: admin / admin123
+```
+
+### Docker 部署
+```bash
+docker-compose up -d
+# 访问 http://localhost:8080
+# 数据持久化在 ./data/ 目录
 ```
 
 ---
@@ -222,3 +230,9 @@ buy-demo/
 17. ✅ ECharts可视化仪表盘
 18. ✅ CSV批量导入（商品/供应商）
 19. ✅ 采购单/销售单打印
+
+### ✅ 第四期：部署与完善
+20. ✅ Docker部署（Dockerfile + docker-compose）
+21. 🔜 数据库备份与恢复
+22. 🔜 系统参数配置
+23. 🔜 API文档（Swagger/OpenAPI）
