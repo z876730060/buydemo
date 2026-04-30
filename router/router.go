@@ -144,6 +144,17 @@ func Setup() *gin.Engine {
 			auth.POST("/contracts/:id/sign", middlewares.LogOperation("sign", "contract", 0, "合同签字"), handlers.SignContract)
 			auth.POST("/contracts/:id/cancel", middlewares.LogOperation("cancel", "contract", 0, "取消合同"), handlers.CancelContract)
 			auth.POST("/contracts/:id/generate-token", middlewares.LogOperation("generate_token", "contract", 0, "生成签署链接"), handlers.GenerateSignToken)
+
+			// System Settings
+			auth.GET("/system/settings", handlers.GetSystemSettings)
+			auth.PUT("/system/settings", middlewares.LogOperation("update", "system_setting", 0, "更新系统配置"), handlers.UpdateSystemSettings)
+
+			// Backup & Restore
+			auth.GET("/system/backups", handlers.GetBackupRecords)
+			auth.POST("/system/backups", middlewares.LogOperation("backup", "database", 0, "数据库备份"), handlers.CreateBackup)
+			auth.POST("/system/backups/:id/restore", middlewares.LogOperation("restore", "database", 0, "恢复备份"), handlers.RestoreBackup)
+			auth.GET("/system/backups/:id/download", handlers.DownloadBackup)
+			auth.DELETE("/system/backups/:id", handlers.DeleteBackup)
 		}
 	}
 

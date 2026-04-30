@@ -49,6 +49,8 @@ func Init(cfg *config.Config) {
 		&models.PaymentRecord{},
 		&models.OperationLog{},
 		&models.Contract{},
+		&models.SystemSetting{},
+		&models.BackupRecord{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)

@@ -88,6 +88,7 @@
           <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
           <el-menu-item index="reports"><i class="el-icon-document"></i>报表中心</el-menu-item>
           <el-menu-item index="contracts"><i class="el-icon-document-copy"></i>合同管理</el-menu-item>
+          <el-menu-item index="system" v-if="currentUser.role==='admin'"><i class="el-icon-setting"></i>系统设置</el-menu-item>
           <el-menu-item index="operation-logs" v-if="currentUser.role==='admin'"><i class="el-icon-info"></i>操作日志</el-menu-item>
           <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
         </el-menu>
@@ -237,6 +238,77 @@
                   </el-table-column>
                 </el-table>
               </el-card>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <!-- System Settings -->
+        <div v-if="activeMenu === 'system'">
+          <div class="page-title">⚙️ 系统设置</div>
+          <el-tabs v-model="systemTab">
+            <el-tab-pane label="基本设置" name="settings">
+              <el-card>
+                <el-form :model="systemSettings" label-width="160px" size="small">
+                  <el-form-item label="公司名称">
+                    <el-input v-model="systemSettings.company_name" placeholder="公司/企业名称"></el-input>
+                  </el-form-item>
+                  <el-form-item label="公司地址">
+                    <el-input v-model="systemSettings.company_address" placeholder="公司地址"></el-input>
+                  </el-form-item>
+                  <el-form-item label="联系电话">
+                    <el-input v-model="systemSettings.company_phone" placeholder="联系电话"></el-input>
+                  </el-form-item>
+                  <el-form-item label="货币符号">
+                    <el-select v-model="systemSettings.currency" style="width:200px">
+                      <el-option label="¥ (人民币)" value="¥"></el-option>
+                      <el-option label="$ (美元)" value="$"></el-option>
+                      <el-option label="€ (欧元)" value="€"></el-option>
+                      <el-option label="£ (英镑)" value="£"></el-option>
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="低库存预警阈值">
+                    <el-input-number v-model="systemSettings.low_stock_threshold" :min="1" :max="999" style="width:200px"></el-input-number>
+                  </el-form-item>
+                  <el-form-item label="备份保留天数">
+                    <el-input-number v-model="systemSettings.backup_retention" :min="1" :max="365" style="width:200px"></el-input-number>
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button type="primary" @click="saveSystemSettings" :loading="systemSettingsSaving">保存设置</el-button>
+                  </el-form-item>
+                </el-form>
+              </el-card>
+            </el-tab-pane>
+            <el-tab-pane label="数据备份" name="backups">
+              <div class="search-bar">
+                <el-button type="primary" size="small" @click="createBackup" :loading="backupCreating"><i class="el-icon-plus"></i>立即备份</el-button>
+                <span style="color:#909399;font-size:12px;margin-left:8px">备份文件保存在 data/backups/ 目录</span>
+              </div>
+              <el-table :data="backupList" stripe v-loading="backupLoading" size="small" empty-text="暂无备份记录">
+                <el-table-column prop="file_name" label="文件名" min-width="240"></el-table-column>
+                <el-table-column prop="file_size" label="大小" width="100">
+                  <template slot-scope="s">{{ formatFileSize(s.row.file_size) }}</template>
+                </el-table-column>
+                <el-table-column prop="status" label="状态" width="80">
+                  <template slot-scope="s">
+                    <el-tag :type="s.row.status==='success'?'success':'danger'" size="small">{{ s.row.status==='success'?'成功':'失败' }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="creator.real_name" label="创建人" width="100"></el-table-column>
+                <el-table-column prop="created_at" label="创建时间" width="160">
+                  <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+                </el-table-column>
+                <el-table-column prop="remark" label="备注" min-width="160"></el-table-column>
+                <el-table-column label="操作" width="200" fixed="right">
+                  <template slot-scope="s">
+                    <el-button size="mini" type="success" v-if="s.row.status==='success'" @click="downloadBackup(s.row)">下载</el-button>
+                    <el-button size="mini" type="warning" v-if="s.row.status==='success'" @click="restoreBackup(s.row)">恢复</el-button>
+                    <el-button size="mini" type="danger" @click="deleteBackup(s.row.id)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <div style="margin-top:16px;text-align:right">
+                <el-pagination :total="backupTotal" :page-size="20" :current-page="backupPage" layout="total,prev,pager,next" @current-change="p=>{backupPage=p;fetchBackups()}"></el-pagination>
+              </div>
             </el-tab-pane>
           </el-tabs>
         </div>
