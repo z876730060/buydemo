@@ -87,6 +87,7 @@
           <el-menu-item index="finance"><i class="el-icon-coin"></i>财务管理</el-menu-item>
           <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
           <el-menu-item index="reports"><i class="el-icon-document"></i>报表中心</el-menu-item>
+          <el-menu-item index="contracts"><i class="el-icon-document-copy"></i>合同管理</el-menu-item>
           <el-menu-item index="operation-logs" v-if="currentUser.role==='admin'"><i class="el-icon-info"></i>操作日志</el-menu-item>
           <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
         </el-menu>
@@ -775,6 +776,63 @@
             </el-tab-pane>
           </el-tabs>
         </div>
+
+        <!-- Contracts -->
+        <div v-if="activeMenu === 'contracts'">
+          <div class="page-title">📄 合同管理</div>
+          <div class="search-bar">
+            <el-input v-model="contractKeyword" placeholder="搜索编号/标题/对方名称" style="width:260px" size="small" clearable @clear="fetchContracts" @keyup.enter="fetchContracts"></el-input>
+            <el-select v-model="contractStatusFilter" placeholder="状态筛选" style="width:140px" size="small" clearable @change="fetchContracts">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="草稿" value="draft"></el-option>
+              <el-option label="待乙方签字" value="sent"></el-option>
+              <el-option label="仅乙方签字" value="signed_by_b"></el-option>
+              <el-option label="已完成" value="completed"></el-option>
+              <el-option label="已取消" value="cancelled"></el-option>
+            </el-select>
+            <el-select v-model="contractTypeFilter" placeholder="合同类型" style="width:120px" size="small" clearable @change="fetchContracts">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="采购合同" value="purchase"></el-option>
+              <el-option label="销售合同" value="sales"></el-option>
+            </el-select>
+            <el-button type="primary" size="small" @click="fetchContracts">搜索</el-button>
+            <el-button type="success" size="small" @click="openContractDialog()">+ 新建合同</el-button>
+          </div>
+          <el-table :data="contractList" stripe v-loading="contractLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="contract_no" label="合同编号" width="160"></el-table-column>
+            <el-table-column prop="title" label="标题" min-width="180">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewContract(s.row)" style="padding:0">{{ s.row.title }}</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column prop="type" label="类型" width="80">
+              <template slot-scope="s"><el-tag :type="s.row.type==='purchase'?'warning':'primary'" size="small">{{ s.row.type==='purchase'?'采购':'销售' }}</el-tag></template>
+            </el-table-column>
+            <el-table-column prop="party_b_name" label="对方" min-width="140"></el-table-column>
+            <el-table-column prop="total_amount" label="金额" width="110">
+              <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="120">
+              <template slot-scope="s">
+                <el-tag :type="contractStatusTagType(s.row.status)" size="small">{{ contractStatusLabel(s.row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="140">
+              <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template slot-scope="s">
+                <el-button size="mini" @click="viewContract(s.row)">详情</el-button>
+                <el-button size="mini" type="primary" v-if="s.row.status==='draft'" @click="openContractDialog(s.row)">编辑</el-button>
+                <el-button size="mini" type="danger" v-if="s.row.status==='draft'||s.row.status==='sent'" @click="cancelContract(s.row.id)">取消</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="contractTotal" :page-size="20" :current-page="contractPage" layout="total,prev,pager,next" @current-change="p=>{contractPage=p;fetchContracts()}"></el-pagination>
+          </div>
+        </div>
+
         <!-- Users Management -->
         <div v-if="activeMenu === 'users'">
           <div class="page-title">👤 用户管理</div>
@@ -1313,6 +1371,129 @@
     </div>
   </el-dialog>
 
+  <!-- Contract Dialog -->
+  <el-dialog :title="contractForm.id?'编辑合同':'新建合同'" :visible.sync="contractDialogVisible" width="700px" :close-on-click-modal="false">
+    <el-form :model="contractForm" label-width="100px" size="small">
+      <el-form-item label="合同标题" required>
+        <el-input v-model="contractForm.title" placeholder="如：2026年度采购框架合同"></el-input>
+      </el-form-item>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="合同类型" required>
+            <el-select v-model="contractForm.type" style="width:100%" :disabled="!!contractForm.id">
+              <el-option label="采购合同" value="purchase"></el-option>
+              <el-option label="销售合同" value="sales"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="对方类型" required>
+            <el-select v-model="contractForm.party_b_type" style="width:100%" :disabled="!!contractForm.id" @change="onContractPartyTypeChange">
+              <el-option label="供应商" value="supplier"></el-option>
+              <el-option label="客户" value="customer"></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-form-item label="选择对方" required>
+        <el-select v-model="contractForm.party_b_id" filterable placeholder="选择供应商/客户" style="width:100%" :disabled="!!contractForm.id">
+          <el-option v-for="p in contractPartyOptions" :key="p.id" :label="p.name+' ('+p.contact+'）'" :value="p.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="合同金额">
+        <el-input-number v-model="contractForm.total_amount" :min="0" :precision="2" style="width:100%"></el-input-number>
+      </el-form-item>
+      <el-form-item label="合同条款">
+        <el-input v-model="contractForm.content" type="textarea" :rows="6" placeholder="合同条款内容..."></el-input>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="contractForm.remark" type="textarea" :rows="2"></el-input>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="contractDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="saveContract" :loading="contractSaving" size="small">保存</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Contract Detail Dialog -->
+  <el-dialog title="合同详情" :visible.sync="contractDetailVisible" width="800px" :close-on-click-modal="false" top="3vh">
+    <div v-if="contractDetail">
+      <el-descriptions :column="2" border size="small" style="margin-bottom:16px">
+        <el-descriptions-item label="合同编号">{{ contractDetail.contract_no }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="contractStatusTagType(contractDetail.status)" size="small">{{ contractStatusLabel(contractDetail.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="标题" :span="2">{{ contractDetail.title }}</el-descriptions-item>
+        <el-descriptions-item label="合同类型">{{ contractDetail.type==='purchase'?'采购合同':'销售合同' }}</el-descriptions-item>
+        <el-descriptions-item label="对方">{{ contractDetail.party_b_name }}</el-descriptions-item>
+        <el-descriptions-item label="联系方式">{{ contractDetail.party_b_contact || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="合同金额">¥{{ contractDetail.total_amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="创建人">{{ contractDetail.creator?contractDetail.creator.real_name||contractDetail.creator.username:'-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatDate(contractDetail.created_at) }}</el-descriptions-item>
+        <el-descriptions-item label="甲方签字时间" v-if="contractDetail.signed_at_a">{{ formatDate(contractDetail.signed_at_a) }}</el-descriptions-item>
+        <el-descriptions-item label="乙方签字时间" v-if="contractDetail.signed_at_b">{{ formatDate(contractDetail.signed_at_b) }}</el-descriptions-item>
+        <el-descriptions-item label="备注" :span="2">{{ contractDetail.remark || '-' }}</el-descriptions-item>
+      </el-descriptions>
+
+      <el-card v-if="contractDetail.content" style="margin-bottom:16px">
+        <div slot="header">合同条款</div>
+        <pre style="white-space:pre-wrap;font-family:inherit;margin:0;line-height:1.8">{{ contractDetail.content }}</pre>
+      </el-card>
+
+      <el-row :gutter="16" style="margin-bottom:16px">
+        <el-col :span="12">
+          <el-card>
+            <div slot="header">📝 甲方签字（我方）</div>
+            <div v-if="contractDetail.signed_by_a" style="text-align:center">
+              <img :src="contractDetail.signed_by_a" style="max-width:200px;max-height:80px;border:1px solid #ddd;background:#fff"/>
+              <div style="color:#909399;font-size:12px;margin-top:4px">签字时间：{{ formatDate(contractDetail.signed_at_a) }}</div>
+            </div>
+            <div v-else style="text-align:center;padding:16px;color:#909399">
+              <p>尚未签字</p>
+              <el-button v-if="contractDetail.status==='draft'||contractDetail.status==='sent'" type="primary" size="small" @click="openSignDialog('a')" style="margin-top:8px">去签字</el-button>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card>
+            <div slot="header">📝 乙方签字（{{ contractDetail.party_b_name }}）</div>
+            <div v-if="contractDetail.signed_by_b" style="text-align:center">
+              <img :src="contractDetail.signed_by_b" style="max-width:200px;max-height:80px;border:1px solid #ddd;background:#fff"/>
+              <div style="color:#909399;font-size:12px;margin-top:4px">签字时间：{{ formatDate(contractDetail.signed_at_b) }}</div>
+            </div>
+            <div v-else style="text-align:center;padding:16px;color:#909399">
+              <p>{{ contractDetail.status==='sent'?'等待对方签字':'尚未签字' }}</p>
+              <el-button v-if="contractDetail.status==='sent'" type="success" size="small" @click="openSignDialog('b')" style="margin-top:8px">模拟乙方签字</el-button>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+    <div slot="footer">
+      <el-button @click="contractDetailVisible=false" size="small">关闭</el-button>
+      <el-button type="primary" @click="printContract(contractDetail)" size="small" icon="el-icon-printer">打印</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Signature Pad Dialog -->
+  <el-dialog title="签字" :visible.sync="signDialogVisible" width="500px" :close-on-click-modal="false">
+    <div style="text-align:center">
+      <p style="margin-bottom:12px;color:#606266">{{ signParty==='a'?'甲方（我方）':'乙方（'+contractDetail?.party_b_name+'）' }}请在下方区域签名：</p>
+      <div style="border:2px dashed #409eff;border-radius:4px;background:#fff;cursor:crosshair;touch-action:none">
+        <canvas ref="signCanvas" width="440" height="200" @mousedown="signStart" @mousemove="signMove" @mouseup="signEnd" @mouseleave="signEnd" @touchstart.prevent="signTouchStart" @touchmove.prevent="signTouchMove" @touchend.prevent="signEnd"></canvas>
+      </div>
+      <div style="margin-top:8px">
+        <el-button size="mini" @click="clearSignature">清除</el-button>
+        <span style="color:#909399;font-size:12px;margin-left:12px">使用鼠标或手指绘制签名</span>
+      </div>
+    </div>
+    <div slot="footer">
+      <el-button @click="signDialogVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="submitSignature" :loading="signSaving" size="small">确认签字</el-button>
+    </div>
+  </el-dialog>
+
   <!-- User Dialog -->
   <el-dialog :title="userForm.id?'编辑用户':'新增用户'" :visible.sync="userDialogVisible" width="450px" :close-on-click-modal="false">
     <el-form :model="userForm" label-width="100px" size="small">
@@ -1578,6 +1759,28 @@ new Vue({
       importPreviewColumns: [],
       importSaving: false,
       importDialogTitle: '导入数据',
+
+      // Contracts
+      contractList: [],
+      contractTotal: 0,
+      contractPage: 1,
+      contractKeyword: '',
+      contractStatusFilter: '',
+      contractTypeFilter: '',
+      contractLoading: false,
+      contractDialogVisible: false,
+      contractForm: {},
+      contractSaving: false,
+      contractPartyOptions: [],
+      contractDetailVisible: false,
+      contractDetail: null,
+
+      // Signature
+      signDialogVisible: false,
+      signParty: 'a',
+      signSaving: false,
+      signDrawing: false,
+      signCtx: null,
     };
   },
   computed: {
@@ -1630,6 +1833,7 @@ new Vue({
       else if (index === 'inventory') this.fetchInventories();
       else if (index === 'reports') { this.fetchPurchaseReport(); this.fetchInventoryReport(); }
       else if (index === 'operation-logs') this.fetchOperationLogs();
+      else if (index === 'contracts') this.fetchContracts();
     },
 
     // === DASHBOARD ===
@@ -2339,7 +2543,7 @@ new Vue({
       return map[a] || 'info';
     },
     logTargetLabel(t) {
-      const map = {supplier:'供应商', customer:'客户', product:'商品', purchase_order:'采购单', sales_order:'销售单', user:'用户', expense:'费用', account_payable:'应付账款', account_receivable:'应收账款'};
+      const map = {supplier:'供应商', customer:'客户', product:'商品', purchase_order:'采购单', sales_order:'销售单', user:'用户', expense:'费用', account_payable:'应付账款', account_receivable:'应收账款', contract:'合同'};
       return map[t] || t;
     },
 
@@ -2601,6 +2805,209 @@ new Vue({
         // Also fetch finance data for trend chart
         this.fetchFinanceSummary();
       });
+    },
+
+    // === CONTRACTS ===
+    async fetchContracts() {
+      this.contractLoading = true;
+      try {
+        const params = {page:this.contractPage, page_size:20, keyword:this.contractKeyword};
+        if (this.contractStatusFilter) params.status = this.contractStatusFilter;
+        if (this.contractTypeFilter) params.type = this.contractTypeFilter;
+        const res = await api.get('/contracts', {params});
+        this.contractList = res.data.data;
+        this.contractTotal = res.data.total;
+      } catch (e) { this.$message.error('获取合同列表失败'); }
+      this.contractLoading = false;
+    },
+    onContractPartyTypeChange() {
+      this.contractForm.party_b_id = '';
+      this.contractPartyOptions = [];
+      if (!this.contractForm.party_b_type) return;
+      api.get('/contracts/parties', {params:{type: this.contractForm.party_b_type}}).then(res => {
+        this.contractPartyOptions = res.data.data;
+      }).catch(() => {});
+    },
+    openContractDialog(row) {
+      if (row) {
+        this.contractForm = {
+          id: row.id,
+          title: row.title,
+          type: row.type,
+          party_b_type: row.party_b_type,
+          party_b_id: row.party_b_id,
+          total_amount: row.total_amount,
+          content: row.content,
+          remark: row.remark
+        };
+        this.contractPartyOptions = [{id: row.party_b_id, name: row.party_b_name, contact: row.party_b_contact}];
+      } else {
+        this.contractForm = {title:'', type:'purchase', party_b_type:'supplier', party_b_id:'', total_amount:0, content:'', remark:''};
+        this.onContractPartyTypeChange();
+      }
+      this.contractDialogVisible = true;
+    },
+    async saveContract() {
+      if (!this.contractForm.title) return this.$message.warning('请输入合同标题');
+      if (!this.contractForm.party_b_id) return this.$message.warning('请选择对方');
+      this.contractSaving = true;
+      try {
+        if (this.contractForm.id) {
+          await api.put('/contracts/'+this.contractForm.id, this.contractForm);
+          this.$message.success('更新成功');
+        } else {
+          await api.post('/contracts', this.contractForm);
+          this.$message.success('创建成功');
+        }
+        this.contractDialogVisible = false;
+        this.fetchContracts();
+      } catch (e) { this.$message.error(e.response?.data?.error || '保存失败'); }
+      this.contractSaving = false;
+    },
+    async viewContract(row) {
+      try {
+        const res = await api.get('/contracts/'+row.id);
+        this.contractDetail = res.data.data;
+        this.contractDetailVisible = true;
+      } catch (e) { this.$message.error('获取合同详情失败'); }
+    },
+    async cancelContract(id) {
+      try {
+        await this.$confirm('确认取消该合同？','提示',{confirmButtonText:'确定',cancelButtonText:'取消',type:'warning'});
+        await api.post('/contracts/'+id+'/cancel');
+        this.$message.success('已取消');
+        this.fetchContracts();
+      } catch (e) { if (e !== 'cancel') this.$message.error('操作失败'); }
+    },
+    contractStatusLabel(s) {
+      const map = {draft:'草稿', sent:'待乙方签字', signed_by_b:'仅乙方签字', completed:'已完成', cancelled:'已取消'};
+      return map[s] || s;
+    },
+    contractStatusTagType(s) {
+      const map = {draft:'info', sent:'warning', signed_by_b:'primary', completed:'success', cancelled:'danger'};
+      return map[s] || 'info';
+    },
+
+    // === SIGNATURE ===
+    openSignDialog(party) {
+      this.signParty = party;
+      this.signDialogVisible = true;
+      this.$nextTick(() => {
+        const canvas = this.$refs.signCanvas;
+        if (canvas) {
+          this.signCtx = canvas.getContext('2d');
+          this.signCtx.strokeStyle = '#000';
+          this.signCtx.lineWidth = 2;
+          this.signCtx.lineCap = 'round';
+          this.signCtx.lineJoin = 'round';
+        }
+      });
+    },
+    signStart(e) {
+      this.signDrawing = true;
+      const rect = this.$refs.signCanvas.getBoundingClientRect();
+      this.signCtx.beginPath();
+      this.signCtx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    },
+    signMove(e) {
+      if (!this.signDrawing) return;
+      const rect = this.$refs.signCanvas.getBoundingClientRect();
+      this.signCtx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      this.signCtx.stroke();
+    },
+    signEnd() {
+      this.signDrawing = false;
+    },
+    signTouchStart(e) {
+      this.signDrawing = true;
+      const touch = e.touches[0];
+      const rect = this.$refs.signCanvas.getBoundingClientRect();
+      this.signCtx.beginPath();
+      this.signCtx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    },
+    signTouchMove(e) {
+      if (!this.signDrawing) return;
+      const touch = e.touches[0];
+      const rect = this.$refs.signCanvas.getBoundingClientRect();
+      this.signCtx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+      this.signCtx.stroke();
+    },
+    clearSignature() {
+      const canvas = this.$refs.signCanvas;
+      if (canvas) {
+        this.signCtx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    },
+    async submitSignature() {
+      const canvas = this.$refs.signCanvas;
+      if (!canvas) return;
+      const dataUrl = canvas.toDataURL('image/png');
+      // Check if signature is empty
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      let hasDrawing = false;
+      for (let i = 3; i < pixels.length; i += 4) {
+        if (pixels[i] !== 0) { hasDrawing = true; break; }
+      }
+      if (!hasDrawing) return this.$message.warning('请先签名');
+
+      this.signSaving = true;
+      try {
+        await api.post('/contracts/'+this.contractDetail.id+'/sign', {
+          party: this.signParty,
+          signature: dataUrl
+        });
+        this.$message.success('签字成功');
+        this.signDialogVisible = false;
+        // Refresh contract detail
+        const res = await api.get('/contracts/'+this.contractDetail.id);
+        this.contractDetail = res.data.data;
+      } catch (e) { this.$message.error(e.response?.data?.error || '签字失败'); }
+      this.signSaving = false;
+    },
+
+    // === PRINT CONTRACT ===
+    printContract(contract) {
+      if (!contract) return this.$message.warning('请先查看合同详情');
+      const statusMap = {draft:'草稿', sent:'待乙方签字', signed_by_b:'仅乙方签字', completed:'已完成', cancelled:'已取消'};
+      const win = window.open('', '_blank');
+      win.document.write(`
+        <html><head><meta charset="utf-8"><title>合同 - ${contract.contract_no}</title>
+        <style>
+          body { font-family: 'SimSun','Microsoft YaHei',sans-serif; padding: 40px; font-size: 13px; }
+          .print-header { text-align:center; font-size:22px; font-weight:bold; padding:16px 0; border-bottom:2px solid #000; margin-bottom:24px; }
+          .info { margin-bottom:16px; line-height:2; }
+          .info table { width:100%; border: none; }
+          .info td { padding: 2px 8px; border: none; }
+          .content { border-top:1px solid #ddd; border-bottom:1px solid #ddd; padding:24px 0; margin:16px 0; line-height:2; white-space:pre-wrap; }
+          .sign-area { margin-top:32px; display:flex; justify-content:space-between; }
+          .sign-box { text-align:center; width:45%; }
+          .sign-box img { max-width:180px; max-height:70px; border:1px solid #ddd; }
+          .sign-box .label { font-weight:bold; margin-bottom:8px; }
+          .footer { text-align:center; margin-top:40px; color:#999; font-size:11px; border-top:1px solid #ddd; padding-top:16px; }
+          @media print { body { padding: 20px; } }
+        </style></head><body>
+        <div class="print-header">📄 合 同</div>
+        <div class="info">
+          <table><tr><td width="50%"><strong>合同编号：</strong>${contract.contract_no}<br><strong>标题：</strong>${contract.title}<br><strong>合同类型：</strong>${contract.type==='purchase'?'采购合同':'销售合同'}</td>
+          <td><strong>甲方：</strong>本公司<br><strong>乙方：</strong>${contract.party_b_name}<br><strong>状态：</strong>${statusMap[contract.status]||contract.status}</td></tr></table>
+        </div>
+        ${contract.content ? `<div class="content">${contract.content}</div>` : ''}
+        <div class="sign-area">
+          <div class="sign-box">
+            <div class="label">甲方（我方）签字</div>
+            ${contract.signed_by_a ? `<img src="${contract.signed_by_a}"/><br><span style="font-size:11px;color:#999">${this.formatDate(contract.signed_at_a)}</span>` : '<span style="color:#999">未签字</span>'}
+          </div>
+          <div class="sign-box">
+            <div class="label">乙方（${contract.party_b_name}）签字</div>
+            ${contract.signed_by_b ? `<img src="${contract.signed_by_b}"/><br><span style="font-size:11px;color:#999">${this.formatDate(contract.signed_at_b)}</span>` : '<span style="color:#999">未签字</span>'}
+          </div>
+        </div>
+        <div class="footer">打印时间：${new Date().toLocaleString('zh-CN')} | Buy-Demo ERP</div>
+        <script>window.print();window.close();<\/script>
+        </body></html>`);
+      win.document.close();
     },
 
     // === PRINT ===

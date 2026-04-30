@@ -128,6 +128,16 @@ func Setup() *gin.Engine {
 			auth.GET("/export/purchase-orders", handlers.LoggedExport(handlers.ExportPurchaseOrders, "采购单"))
 			auth.GET("/export/sales-orders", handlers.LoggedExport(handlers.ExportSalesOrders, "销售单"))
 			auth.GET("/export/inventory", handlers.LoggedExport(handlers.ExportInventory, "库存"))
+
+			// Contracts
+			auth.GET("/contracts", handlers.GetContracts)
+			auth.GET("/contracts/:id", handlers.GetContract)
+			auth.GET("/contracts/parties", handlers.GetContractParties)
+			auth.POST("/contracts", middlewares.LogOperation("create", "contract", 0, "新建合同"), handlers.CreateContract)
+			auth.PUT("/contracts/:id", handlers.UpdateContract)
+			auth.DELETE("/contracts/:id", handlers.DeleteContract)
+			auth.POST("/contracts/:id/sign", middlewares.LogOperation("sign", "contract", 0, "合同签字"), handlers.SignContract)
+			auth.POST("/contracts/:id/cancel", middlewares.LogOperation("cancel", "contract", 0, "取消合同"), handlers.CancelContract)
 		}
 	}
 
