@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 )
 
@@ -106,6 +107,7 @@ func UpdateCustomer(c *gin.Context) {
 		"status":         input.Status,
 	})
 
+	middlewares.SimpleLog(c, "update", "customer", customer.ID, "编辑客户: "+customer.Name)
 	c.JSON(http.StatusOK, gin.H{"data": customer, "message": "更新成功"})
 }
 
@@ -123,6 +125,7 @@ func DeleteCustomer(c *gin.Context) {
 	}
 
 	database.DB.Delete(&customer)
+	middlewares.SimpleLog(c, "delete", "customer", customer.ID, "删除客户: "+customer.Name)
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 

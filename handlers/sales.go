@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 )
 
@@ -185,6 +186,7 @@ func UpdateSalesOrder(c *gin.Context) {
 		"remark":       req.Remark,
 	})
 
+	middlewares.SimpleLog(c, "update", "sales_order", order.ID, "编辑销售单: "+order.OrderNo)
 	c.JSON(http.StatusOK, gin.H{"data": order, "message": "更新成功"})
 }
 

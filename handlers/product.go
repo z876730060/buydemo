@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 )
 
@@ -119,6 +120,7 @@ func UpdateProduct(c *gin.Context) {
 		"status":   input.Status,
 	})
 
+	middlewares.SimpleLog(c, "update", "product", product.ID, "编辑商品: "+product.Name)
 	c.JSON(http.StatusOK, gin.H{"data": product, "message": "更新成功"})
 }
 
@@ -137,6 +139,7 @@ func DeleteProduct(c *gin.Context) {
 
 	database.DB.Delete(&product)
 	database.DB.Where("product_id = ?", product.ID).Delete(&models.Inventory{})
+	middlewares.SimpleLog(c, "delete", "product", product.ID, "删除商品: "+product.Name)
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 

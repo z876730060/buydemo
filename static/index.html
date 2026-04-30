@@ -78,6 +78,8 @@
           <el-menu-item index="sales-orders"><i class="el-icon-sold-out"></i>销售单管理</el-menu-item>
           <el-menu-item index="finance"><i class="el-icon-coin"></i>财务管理</el-menu-item>
           <el-menu-item index="inventory"><i class="el-icon-s-operation"></i>库存管理</el-menu-item>
+          <el-menu-item index="reports"><i class="el-icon-document"></i>报表中心</el-menu-item>
+          <el-menu-item index="operation-logs" v-if="currentUser.role==='admin'"><i class="el-icon-info"></i>操作日志</el-menu-item>
           <el-menu-item index="users" v-if="currentUser.role==='admin'"><i class="el-icon-user"></i>用户管理</el-menu-item>
         </el-menu>
       </el-aside>
@@ -122,6 +124,157 @@
               </el-card>
             </el-col>
           </el-row>
+        </div>
+
+        <!-- Reports -->
+        <div v-if="activeMenu === 'reports'">
+          <div class="page-title">📈 报表中心</div>
+          <el-tabs v-model="reportTab">
+            <el-tab-pane label="采购报表" name="purchase">
+              <div class="search-bar">
+                <el-date-picker v-model="purchaseReportStart" type="date" placeholder="开始日期" value-format="yyyy-MM-dd" size="small" style="width:140px"></el-date-picker>
+                <span style="color:#909399">至</span>
+                <el-date-picker v-model="purchaseReportEnd" type="date" placeholder="结束日期" value-format="yyyy-MM-dd" size="small" style="width:140px"></el-date-picker>
+                <el-button type="primary" size="small" @click="fetchPurchaseReport">查询</el-button>
+                <el-button size="small" @click="exportData('purchase-orders')">导出CSV</el-button>
+              </div>
+              <el-card v-if="purchaseReportData">
+                <div slot="header">采购汇总（{{ purchaseReportData.start_date }} 至 {{ purchaseReportData.end_date }}）</div>
+                <div style="margin-bottom:16px">
+                  <span style="margin-right:30px">采购单数：<strong>{{ purchaseReportData.total_count }}</strong></span>
+                  <span>采购总额：<strong>¥{{ purchaseReportData.total_amount ? purchaseReportData.total_amount.toFixed(2) : '0.00' }}</strong></span>
+                </div>
+                <el-table :data="purchaseReportData.details" stripe size="small" empty-text="暂无数据">
+                  <el-table-column prop="date" label="日期" width="160"></el-table-column>
+                  <el-table-column prop="order_count" label="采购单数" width="120"></el-table-column>
+                  <el-table-column prop="total_amount" label="采购金额" width="160">
+                    <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="received_amount" label="已入库金额" width="160">
+                    <template slot-scope="s">¥{{ s.row.received_amount.toFixed(2) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-tab-pane>
+            <el-tab-pane label="销售报表" name="sales">
+              <div class="search-bar">
+                <el-date-picker v-model="salesReportStart" type="date" placeholder="开始日期" value-format="yyyy-MM-dd" size="small" style="width:140px"></el-date-picker>
+                <span style="color:#909399">至</span>
+                <el-date-picker v-model="salesReportEnd" type="date" placeholder="结束日期" value-format="yyyy-MM-dd" size="small" style="width:140px"></el-date-picker>
+                <el-button type="primary" size="small" @click="fetchSalesReport">查询</el-button>
+                <el-button size="small" @click="exportData('sales-orders')">导出CSV</el-button>
+              </div>
+              <el-card v-if="salesReportData">
+                <div slot="header">销售汇总（{{ salesReportData.start_date }} 至 {{ salesReportData.end_date }}）</div>
+                <div style="margin-bottom:16px">
+                  <span style="margin-right:30px">销售单数：<strong>{{ salesReportData.total_count }}</strong></span>
+                  <span>销售总额：<strong>¥{{ salesReportData.total_amount ? salesReportData.total_amount.toFixed(2) : '0.00' }}</strong></span>
+                </div>
+                <el-table :data="salesReportData.details" stripe size="small" empty-text="暂无数据">
+                  <el-table-column prop="date" label="日期" width="160"></el-table-column>
+                  <el-table-column prop="order_count" label="销售单数" width="120"></el-table-column>
+                  <el-table-column prop="total_amount" label="销售金额" width="160">
+                    <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="delivered_amount" label="已出库金额" width="160">
+                    <template slot-scope="s">¥{{ s.row.delivered_amount.toFixed(2) }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-tab-pane>
+            <el-tab-pane label="库存报表" name="inventory">
+              <div class="search-bar">
+                <el-button type="primary" size="small" @click="fetchInventoryReport">查询</el-button>
+                <el-button size="small" @click="exportData('inventory')">导出CSV</el-button>
+              </div>
+              <el-card v-if="inventoryReportData">
+                <div slot="header">库存总览</div>
+                <div style="margin-bottom:16px">
+                  <span style="margin-right:30px">商品分类数：<strong>{{ inventoryReportData.category_count }}</strong></span>
+                  <span style="margin-right:30px">总库存量：<strong>{{ inventoryReportData.total_quantity ? inventoryReportData.total_quantity.toFixed(2) : '0' }}</strong></span>
+                  <span>库存总值：<strong>¥{{ inventoryReportData.total_value ? inventoryReportData.total_value.toFixed(2) : '0.00' }}</strong></span>
+                </div>
+                <el-table :data="inventoryReportData.details" stripe size="small" empty-text="暂无数据">
+                  <el-table-column prop="product_code" label="编码" width="100"></el-table-column>
+                  <el-table-column prop="product_name" label="名称" min-width="140"></el-table-column>
+                  <el-table-column prop="category" label="分类" width="80"></el-table-column>
+                  <el-table-column prop="unit" label="单位" width="60"></el-table-column>
+                  <el-table-column prop="spec" label="规格" width="100"></el-table-column>
+                  <el-table-column prop="quantity" label="数量" width="100">
+                    <template slot-scope="s">
+                      <span :style="{color:s.row.quantity<=0?'#f56c6c':s.row.quantity<=10?'#e6a23c':'#67c23a',fontWeight:'bold'}">{{ s.row.quantity }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="price" label="单价" width="100">
+                    <template slot-scope="s">¥{{ s.row.price.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="stock_value" label="库存价值" width="120">
+                    <template slot-scope="s">¥{{ s.row.stock_value.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="status" label="状态" width="80">
+                    <template slot-scope="s">
+                      <el-tag v-if="s.row.status==='out_of_stock'" type="danger" size="small">缺货</el-tag>
+                      <el-tag v-else-if="s.row.status==='low_stock'" type="warning" size="small">低库存</el-tag>
+                      <el-tag v-else type="success" size="small">正常</el-tag>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+
+        <!-- Operation Logs -->
+        <div v-if="activeMenu === 'operation-logs'">
+          <div class="page-title">📋 操作日志</div>
+          <div class="search-bar">
+            <el-select v-model="logActionFilter" placeholder="操作类型" style="width:140px" size="small" clearable @change="fetchOperationLogs">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="新增" value="create"></el-option>
+              <el-option label="编辑" value="update"></el-option>
+              <el-option label="删除" value="delete"></el-option>
+              <el-option label="审核" value="approve"></el-option>
+              <el-option label="入库" value="receive"></el-option>
+              <el-option label="出库" value="deliver"></el-option>
+              <el-option label="付款/收款" value="pay"></el-option>
+              <el-option label="导出" value="export"></el-option>
+            </el-select>
+            <el-select v-model="logTargetFilter" placeholder="对象类型" style="width:140px" size="small" clearable @change="fetchOperationLogs">
+              <el-option label="全部" value=""></el-option>
+              <el-option label="供应商" value="supplier"></el-option>
+              <el-option label="客户" value="customer"></el-option>
+              <el-option label="商品" value="product"></el-option>
+              <el-option label="采购单" value="purchase_order"></el-option>
+              <el-option label="销售单" value="sales_order"></el-option>
+              <el-option label="用户" value="user"></el-option>
+              <el-option label="费用" value="expense"></el-option>
+              <el-option label="应付账款" value="account_payable"></el-option>
+              <el-option label="应收账款" value="account_receivable"></el-option>
+            </el-select>
+            <el-input v-model="logKeyword" placeholder="搜索用户/详情" style="width:260px" size="small" clearable @clear="fetchOperationLogs" @keyup.enter="fetchOperationLogs"></el-input>
+            <el-button type="primary" size="small" @click="fetchOperationLogs">搜索</el-button>
+            <el-button size="small" @click="exportLogs">导出CSV</el-button>
+          </div>
+          <el-table :data="logList" stripe v-loading="logLoading" size="small" empty-text="暂无数据">
+            <el-table-column prop="username" label="用户" width="100"></el-table-column>
+            <el-table-column prop="action" label="操作" width="80">
+              <template slot-scope="s">
+                <el-tag :type="logActionTagType(s.row.action)" size="small">{{ logActionLabel(s.row.action) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="target" label="对象" width="80">
+              <template slot-scope="s">{{ logTargetLabel(s.row.target) }}</template>
+            </el-table-column>
+            <el-table-column prop="target_id" label="对象ID" width="70"></el-table-column>
+            <el-table-column prop="detail" label="详情" min-width="200"></el-table-column>
+            <el-table-column prop="ip" label="IP" width="130"></el-table-column>
+            <el-table-column prop="created_at" label="时间" width="160">
+              <template slot-scope="s">{{ formatDate(s.row.created_at) }}</template>
+            </el-table-column>
+          </el-table>
+          <div style="margin-top:16px;text-align:right">
+            <el-pagination :total="logTotal" :page-size="20" :current-page="logPage" layout="total,prev,pager,next" @current-change="p=>{logPage=p;fetchOperationLogs()}"></el-pagination>
+          </div>
         </div>
 
         <!-- Suppliers -->
@@ -1146,6 +1299,25 @@ new Vue({
       invLogPage: 1,
       invLogProductId: '',
       invLogLoading: false,
+
+      // Reports
+      reportTab: 'purchase',
+      purchaseReportStart: '',
+      purchaseReportEnd: '',
+      purchaseReportData: null,
+      salesReportStart: '',
+      salesReportEnd: '',
+      salesReportData: null,
+      inventoryReportData: null,
+
+      // Operation Logs
+      logList: [],
+      logTotal: 0,
+      logPage: 1,
+      logKeyword: '',
+      logActionFilter: '',
+      logTargetFilter: '',
+      logLoading: false,
     };
   },
   computed: {
@@ -1196,6 +1368,8 @@ new Vue({
       else if (index === 'users') this.fetchUsers();
       else if (index === 'finance') this.fetchFinanceSummary();
       else if (index === 'inventory') this.fetchInventories();
+      else if (index === 'reports') { this.fetchPurchaseReport(); this.fetchInventoryReport(); }
+      else if (index === 'operation-logs') this.fetchOperationLogs();
     },
 
     // === DASHBOARD ===
@@ -1832,6 +2006,76 @@ new Vue({
         this.invLogTotal = res.data.total;
       } catch (e) { this.$message.error('获取流水数据失败'); }
       this.invLogLoading = false;
+    },
+
+    // === REPORTS ===
+    async fetchPurchaseReport() {
+      try {
+        const params = {};
+        if (this.purchaseReportStart) params.start_date = this.purchaseReportStart;
+        if (this.purchaseReportEnd) params.end_date = this.purchaseReportEnd;
+        const res = await api.get('/reports/purchase', {params});
+        this.purchaseReportData = res.data.data;
+      } catch (e) { this.$message.error('获取采购报表失败'); }
+    },
+    async fetchSalesReport() {
+      try {
+        const params = {};
+        if (this.salesReportStart) params.start_date = this.salesReportStart;
+        if (this.salesReportEnd) params.end_date = this.salesReportEnd;
+        const res = await api.get('/reports/sales', {params});
+        this.salesReportData = res.data.data;
+      } catch (e) { this.$message.error('获取销售报表失败'); }
+    },
+    async fetchInventoryReport() {
+      try {
+        const res = await api.get('/reports/inventory');
+        this.inventoryReportData = res.data.data;
+      } catch (e) { this.$message.error('获取库存报表失败'); }
+    },
+    exportData(type) {
+      const params = new URLSearchParams();
+      if (type === 'purchase-orders' && this.purchaseReportStart) params.set('start_date', this.purchaseReportStart);
+      if (type === 'purchase-orders' && this.purchaseReportEnd) params.set('end_date', this.purchaseReportEnd);
+      if (type === 'sales-orders' && this.salesReportStart) params.set('start_date', this.salesReportStart);
+      if (type === 'sales-orders' && this.salesReportEnd) params.set('end_date', this.salesReportEnd);
+      const qs = params.toString();
+      const url = '/api/export/' + type + (qs ? '?' + qs : '');
+      window.open(url, '_blank');
+    },
+
+    // === OPERATION LOGS ===
+    async fetchOperationLogs() {
+      this.logLoading = true;
+      try {
+        const params = {page:this.logPage, page_size:20, keyword:this.logKeyword};
+        if (this.logActionFilter) params.action = this.logActionFilter;
+        if (this.logTargetFilter) params.target = this.logTargetFilter;
+        const res = await api.get('/operation-logs', {params});
+        this.logList = res.data.data;
+        this.logTotal = res.data.total;
+      } catch (e) { this.$message.error('获取操作日志失败'); }
+      this.logLoading = false;
+    },
+    exportLogs() {
+      const params = new URLSearchParams();
+      if (this.logKeyword) params.set('keyword', this.logKeyword);
+      if (this.logActionFilter) params.set('action', this.logActionFilter);
+      if (this.logTargetFilter) params.set('target', this.logTargetFilter);
+      const qs = params.toString();
+      window.open('/api/operation-logs/export' + (qs ? '?' + qs : ''), '_blank');
+    },
+    logActionLabel(a) {
+      const map = {create:'新增', update:'编辑', delete:'删除', approve:'审核', receive:'入库', deliver:'出库', pay:'付款', cancel:'取消', export:'导出', reset_password:'重置密码'};
+      return map[a] || a;
+    },
+    logActionTagType(a) {
+      const map = {create:'success', update:'primary', delete:'danger', approve:'warning', receive:'success', deliver:'warning', pay:'success', cancel:'danger', export:'info', reset_password:'warning'};
+      return map[a] || 'info';
+    },
+    logTargetLabel(t) {
+      const map = {supplier:'供应商', customer:'客户', product:'商品', purchase_order:'采购单', sales_order:'销售单', user:'用户', expense:'费用', account_payable:'应付账款', account_receivable:'应收账款'};
+      return map[t] || t;
     },
 
     // === UTILS ===

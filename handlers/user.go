@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -159,6 +160,7 @@ func UpdateUser(c *gin.Context) {
 		database.DB.Model(&user).Updates(updates)
 	}
 
+	middlewares.SimpleLog(c, "update", "user", user.ID, "编辑用户: "+user.Username)
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"id":       user.ID,
 		"username": user.Username,
@@ -198,6 +200,7 @@ func DeleteUser(c *gin.Context) {
 	}
 
 	database.DB.Delete(&user)
+	middlewares.SimpleLog(c, "delete", "user", user.ID, "删除用户: "+user.Username)
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 

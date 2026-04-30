@@ -29,7 +29,7 @@ func Setup() *gin.Engine {
 			auth.GET("/suppliers", handlers.GetSuppliers)
 			auth.GET("/suppliers/all", handlers.GetAllSuppliers)
 			auth.GET("/suppliers/:id", handlers.GetSupplier)
-			auth.POST("/suppliers", handlers.CreateSupplier)
+			auth.POST("/suppliers", middlewares.LogOperation("create", "supplier", 0, "新增供应商"), handlers.CreateSupplier)
 			auth.PUT("/suppliers/:id", handlers.UpdateSupplier)
 			auth.DELETE("/suppliers/:id", handlers.DeleteSupplier)
 
@@ -38,35 +38,35 @@ func Setup() *gin.Engine {
 			auth.GET("/products/all", handlers.GetAllProducts)
 			auth.GET("/products/categories", handlers.GetCategories)
 			auth.GET("/products/:id", handlers.GetProduct)
-			auth.POST("/products", handlers.CreateProduct)
+			auth.POST("/products", middlewares.LogOperation("create", "product", 0, "新增商品"), handlers.CreateProduct)
 			auth.PUT("/products/:id", handlers.UpdateProduct)
 			auth.DELETE("/products/:id", handlers.DeleteProduct)
 
 			// Purchase Orders
 			auth.GET("/purchase-orders", handlers.GetPurchaseOrders)
 			auth.GET("/purchase-orders/:id", handlers.GetPurchaseOrder)
-			auth.POST("/purchase-orders", handlers.CreatePurchaseOrder)
+			auth.POST("/purchase-orders", middlewares.LogOperation("create", "purchase_order", 0, "新建采购单"), handlers.CreatePurchaseOrder)
 			auth.PUT("/purchase-orders/:id", handlers.UpdatePurchaseOrder)
-			auth.POST("/purchase-orders/:id/approve", handlers.ApproveOrder)
-			auth.POST("/purchase-orders/:id/receive", handlers.ReceiveOrder)
-			auth.POST("/purchase-orders/:id/cancel", handlers.CancelOrder)
+			auth.POST("/purchase-orders/:id/approve", middlewares.LogOperation("approve", "purchase_order", 0, "审核采购单"), handlers.ApproveOrder)
+			auth.POST("/purchase-orders/:id/receive", middlewares.LogOperation("receive", "purchase_order", 0, "采购入库"), handlers.ReceiveOrder)
+			auth.POST("/purchase-orders/:id/cancel", middlewares.LogOperation("cancel", "purchase_order", 0, "取消采购单"), handlers.CancelOrder)
 
 			// Customers
 			auth.GET("/customers", handlers.GetCustomers)
 			auth.GET("/customers/all", handlers.GetAllCustomers)
 			auth.GET("/customers/:id", handlers.GetCustomer)
-			auth.POST("/customers", handlers.CreateCustomer)
+			auth.POST("/customers", middlewares.LogOperation("create", "customer", 0, "新增客户"), handlers.CreateCustomer)
 			auth.PUT("/customers/:id", handlers.UpdateCustomer)
 			auth.DELETE("/customers/:id", handlers.DeleteCustomer)
 
 			// Sales Orders
 			auth.GET("/sales-orders", handlers.GetSalesOrders)
 			auth.GET("/sales-orders/:id", handlers.GetSalesOrder)
-			auth.POST("/sales-orders", handlers.CreateSalesOrder)
+			auth.POST("/sales-orders", middlewares.LogOperation("create", "sales_order", 0, "新建销售单"), handlers.CreateSalesOrder)
 			auth.PUT("/sales-orders/:id", handlers.UpdateSalesOrder)
-			auth.POST("/sales-orders/:id/approve", handlers.ApproveSalesOrder)
-			auth.POST("/sales-orders/:id/deliver", handlers.DeliverSalesOrder)
-			auth.POST("/sales-orders/:id/cancel", handlers.CancelSalesOrder)
+			auth.POST("/sales-orders/:id/approve", middlewares.LogOperation("approve", "sales_order", 0, "审核销售单"), handlers.ApproveSalesOrder)
+			auth.POST("/sales-orders/:id/deliver", middlewares.LogOperation("deliver", "sales_order", 0, "销售出库"), handlers.DeliverSalesOrder)
+			auth.POST("/sales-orders/:id/cancel", middlewares.LogOperation("cancel", "sales_order", 0, "取消销售单"), handlers.CancelSalesOrder)
 
 			// Inventory
 			auth.GET("/inventories", handlers.GetInventories)
@@ -75,25 +75,25 @@ func Setup() *gin.Engine {
 
 			// Users (admin only)
 			auth.GET("/users", handlers.GetUsers)
-			auth.POST("/users", handlers.CreateUser)
+			auth.POST("/users", middlewares.LogOperation("create", "user", 0, "新增用户"), handlers.CreateUser)
 			auth.PUT("/users/:id", handlers.UpdateUser)
 			auth.DELETE("/users/:id", handlers.DeleteUser)
-			auth.POST("/users/:id/reset-password", handlers.ResetPassword)
+			auth.POST("/users/:id/reset-password", middlewares.LogOperation("reset_password", "user", 0, "重置密码"), handlers.ResetPassword)
 
 			// Dashboard
 			auth.GET("/dashboard/stats", handlers.GetDashboardStats)
 
 			// Finance - Accounts Payable
 			auth.GET("/finance/payable", handlers.GetAccountsPayable)
-			auth.POST("/finance/payable/:id/pay", handlers.PayAccountPayable)
+			auth.POST("/finance/payable/:id/pay", middlewares.LogOperation("pay", "account_payable", 0, "付款"), handlers.PayAccountPayable)
 
 			// Finance - Accounts Receivable
 			auth.GET("/finance/receivable", handlers.GetAccountsReceivable)
-			auth.POST("/finance/receivable/:id/receive", handlers.ReceiveAccountReceivable)
+			auth.POST("/finance/receivable/:id/receive", middlewares.LogOperation("receive", "account_receivable", 0, "收款"), handlers.ReceiveAccountReceivable)
 
 			// Finance - Expenses
 			auth.GET("/finance/expenses", handlers.GetExpenses)
-			auth.POST("/finance/expenses", handlers.CreateExpense)
+			auth.POST("/finance/expenses", middlewares.LogOperation("create", "expense", 0, "新增费用"), handlers.CreateExpense)
 			auth.PUT("/finance/expenses/:id", handlers.UpdateExpense)
 			auth.DELETE("/finance/expenses/:id", handlers.DeleteExpense)
 
@@ -106,6 +106,22 @@ func Setup() *gin.Engine {
 			// Finance - Options
 			auth.GET("/finance/payment-methods", handlers.GetPaymentMethods)
 			auth.GET("/finance/expense-categories", handlers.GetExpenseCategories)
+
+			// Operation Logs
+			auth.GET("/operation-logs", handlers.GetOperationLogs)
+			auth.GET("/operation-logs/export", handlers.LoggedExport(handlers.ExportOperationLogs, "操作日志"))
+
+			// Reports
+			auth.GET("/reports/purchase", handlers.GetPurchaseReport)
+			auth.GET("/reports/sales", handlers.GetSalesReport)
+			auth.GET("/reports/inventory", handlers.GetInventoryReport)
+
+			// Data Export
+			auth.GET("/export/suppliers", handlers.LoggedExport(handlers.ExportSuppliers, "供应商"))
+			auth.GET("/export/products", handlers.LoggedExport(handlers.ExportProducts, "商品"))
+			auth.GET("/export/purchase-orders", handlers.LoggedExport(handlers.ExportPurchaseOrders, "采购单"))
+			auth.GET("/export/sales-orders", handlers.LoggedExport(handlers.ExportSalesOrders, "销售单"))
+			auth.GET("/export/inventory", handlers.LoggedExport(handlers.ExportInventory, "库存"))
 		}
 	}
 

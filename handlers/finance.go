@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 )
 
@@ -354,6 +355,7 @@ func UpdateExpense(c *gin.Context) {
 		database.DB.Model(&expense).Updates(updates)
 	}
 
+	middlewares.SimpleLog(c, "update", "expense", expense.ID, "编辑费用: "+expense.Category)
 	c.JSON(http.StatusOK, gin.H{"data": expense, "message": "更新成功"})
 }
 
@@ -371,6 +373,7 @@ func DeleteExpense(c *gin.Context) {
 	}
 
 	database.DB.Delete(&expense)
+	middlewares.SimpleLog(c, "delete", "expense", expense.ID, "删除费用: "+expense.Category)
 	c.JSON(http.StatusOK, gin.H{"message": "删除成功"})
 }
 
