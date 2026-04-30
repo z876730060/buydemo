@@ -287,7 +287,11 @@
           </div>
           <el-table :data="supplierList" stripe v-loading="supplierLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="code" label="编码" width="120"></el-table-column>
-            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewSupplierDetail(s.row)" style="padding:0">{{ s.row.name }}</el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="contact_person" label="联系人" width="120"></el-table-column>
             <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
             <el-table-column prop="status" label="状态" width="80">
@@ -307,8 +311,6 @@
           </div>
         </div>
 
-        </div>
-
         <!-- Customers -->
         <div v-if="activeMenu === 'customers'">
           <div class="page-title">👥 客户管理</div>
@@ -319,7 +321,11 @@
           </div>
           <el-table :data="customerList" stripe v-loading="customerLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="code" label="编码" width="120"></el-table-column>
-            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewCustomerDetail(s.row)" style="padding:0">{{ s.row.name }}</el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="contact_person" label="联系人" width="120"></el-table-column>
             <el-table-column prop="phone" label="联系电话" width="140"></el-table-column>
             <el-table-column prop="status" label="状态" width="80">
@@ -349,7 +355,11 @@
           </div>
           <el-table :data="productList" stripe v-loading="productLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="code" label="编码" width="120"></el-table-column>
-            <el-table-column prop="name" label="名称" min-width="160"></el-table-column>
+            <el-table-column prop="name" label="名称" min-width="160">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewProductDetail(s.row)" style="padding:0">{{ s.row.name }}</el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="category" label="分类" width="100"></el-table-column>
             <el-table-column prop="unit" label="单位" width="60"></el-table-column>
             <el-table-column prop="spec" label="规格" width="120"></el-table-column>
@@ -388,7 +398,11 @@
           </div>
           <el-table :data="poList" stripe v-loading="poLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="order_no" label="采购单号" width="160"></el-table-column>
-            <el-table-column prop="supplier.name" label="供应商" min-width="150"></el-table-column>
+            <el-table-column prop="supplier.name" label="供应商" min-width="150">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewSupplierDetail({id:s.row.supplier_id})" style="padding:0">{{ s.row.supplier.name }}</el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="total_amount" label="总金额" width="120">
               <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
             </el-table-column>
@@ -415,8 +429,6 @@
           </div>
         </div>
 
-        </div>
-
         <!-- Sales Orders -->
         <div v-if="activeMenu === 'sales-orders'">
           <div class="page-title">📦 销售单管理</div>
@@ -434,7 +446,11 @@
           </div>
           <el-table :data="soList" stripe v-loading="soLoading" size="small" empty-text="暂无数据">
             <el-table-column prop="order_no" label="销售单号" width="160"></el-table-column>
-            <el-table-column prop="customer.name" label="客户" min-width="150"></el-table-column>
+            <el-table-column prop="customer.name" label="客户" min-width="150">
+              <template slot-scope="s">
+                <el-button type="text" size="small" @click="viewCustomerDetail({id:s.row.customer_id})" style="padding:0">{{ s.row.customer.name }}</el-button>
+              </template>
+            </el-table-column>
             <el-table-column prop="total_amount" label="总金额" width="120">
               <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
             </el-table-column>
@@ -685,10 +701,15 @@
                 <el-input v-model="invKeyword" placeholder="搜索商品名称/编码" style="width:260px" size="small" clearable @clear="fetchInventories" @keyup.enter="fetchInventories"></el-input>
                 <el-button type="primary" size="small" @click="fetchInventories">搜索</el-button>
                 <el-button type="warning" size="small" @click="fetchLowStock">低库存预警</el-button>
+                <el-button type="success" size="small" @click="openInventoryAdjustDialog()">手动调整</el-button>
               </div>
               <el-table :data="invList" stripe v-loading="invLoading" size="small" empty-text="暂无数据">
                 <el-table-column prop="product.code" label="编码" width="120"></el-table-column>
-                <el-table-column prop="product.name" label="商品名称" min-width="160"></el-table-column>
+                <el-table-column prop="product.name" label="商品名称" min-width="160">
+                  <template slot-scope="s">
+                    <el-button type="text" size="small" @click="viewProductDetail(s.row.product)" style="padding:0">{{ s.row.product.name }}</el-button>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="product.spec" label="规格" width="120"></el-table-column>
                 <el-table-column prop="product.unit" label="单位" width="60"></el-table-column>
                 <el-table-column prop="quantity" label="库存数量" width="120">
@@ -735,6 +756,7 @@
               </div>
             </el-tab-pane>
           </el-tabs>
+        </div>
         <!-- Users Management -->
         <div v-if="activeMenu === 'users'">
           <div class="page-title">👤 用户管理</div>
@@ -1081,6 +1103,173 @@
       <el-button type="primary" @click="saveExpense" :loading="expenseSaving" size="small">保存</el-button>
     </div>
   </el-dialog>
+  <!-- Inventory Adjust Dialog -->
+  <el-dialog title="库存调整" :visible.sync="invAdjustVisible" width="450px" :close-on-click-modal="false">
+    <el-form :model="invAdjustForm" label-width="100px" size="small">
+      <el-form-item label="商品" required>
+        <el-select v-model="invAdjustForm.product_id" filterable placeholder="选择商品" style="width:100%" @change="(val)=>onAdjustProductChange(val)">
+          <el-option v-for="p in productOptions" :key="p.id" :label="p.name+' ('+p.code+')'" :value="p.id"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="商品信息" v-if="invAdjustProduct">
+        <span style="color:#909399">当前库存: <strong>{{ invAdjustProduct.quantity }}</strong> | 单价: ¥{{ invAdjustProduct.price.toFixed(2) }}</span>
+      </el-form-item>
+      <el-form-item label="调整数量" required>
+        <el-input-number v-model="invAdjustForm.quantity" :step="1" :precision="2" style="width:100%"></el-input-number>
+        <span style="color:#909399;font-size:12px">正数=入库，负数=出库</span>
+      </el-form-item>
+      <el-form-item label="调整原因">
+        <el-input v-model="invAdjustForm.remark" type="textarea" :rows="2" placeholder="如：盘点调整、损耗等"></el-input>
+      </el-form-item>
+    </el-form>
+    <div slot="footer">
+      <el-button @click="invAdjustVisible=false" size="small">取消</el-button>
+      <el-button type="primary" @click="submitInventoryAdjust" :loading="invAdjustSaving" size="small">确认调整</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Product Detail Dialog -->
+  <el-dialog title="商品详情" :visible.sync="productDetailVisible" width="900px" :close-on-click-modal="false" top="5vh">
+    <div v-if="productDetailData">
+      <el-descriptions :column="3" border size="small" style="margin-bottom:16px">
+        <el-descriptions-item label="编码">{{ productDetailData.product.code }}</el-descriptions-item>
+        <el-descriptions-item label="名称">{{ productDetailData.product.name }}</el-descriptions-item>
+        <el-descriptions-item label="分类">{{ productDetailData.product.category || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="单位">{{ productDetailData.product.unit || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="规格">{{ productDetailData.product.spec || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="参考单价">¥{{ productDetailData.product.price.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="当前库存">
+          <span :style="{color: productDetailData.inventory.quantity <= 0 ? '#f56c6c' : '#67c23a', fontWeight:'bold', fontSize:'16px'}">
+            {{ productDetailData.inventory.quantity }}
+          </span>
+        </el-descriptions-item>
+        <el-descriptions-item label="库存价值">
+          ¥{{ (productDetailData.inventory.quantity * productDetailData.product.price).toFixed(2) }}
+        </el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag v-if="productDetailData.inventory.quantity<=0" type="danger" size="small">缺货</el-tag>
+          <el-tag v-else-if="productDetailData.inventory.quantity<=10" type="warning" size="small">低库存</el-tag>
+          <el-tag v-else type="success" size="small">正常</el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+      <el-tabs>
+        <el-tab-pane label="采购记录" name="purchases">
+          <el-table :data="productDetailData.purchase_items" stripe size="small" empty-text="暂无采购记录">
+            <el-table-column prop="order_no" label="采购单号" width="160"></el-table-column>
+            <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+            <el-table-column prop="unit_price" label="采购单价" width="100">
+              <template slot-scope="s">¥{{ s.row.unit_price.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="时间" width="140">{{ formatDate(s.row.created_at) }}</el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="销售记录" name="sales">
+          <el-table :data="productDetailData.sales_items" stripe size="small" empty-text="暂无销售记录">
+            <el-table-column prop="order_no" label="销售单号" width="160"></el-table-column>
+            <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+            <el-table-column prop="unit_price" label="销售单价" width="100">
+              <template slot-scope="s">¥{{ s.row.unit_price.toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="80">
+              <template slot-scope="s">
+                <el-tag :type="soStatusTagType(s.row.status)" size="small">{{ soStatusLabel(s.row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="时间" width="140">{{ formatDate(s.row.created_at) }}</el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="库存流水" name="logs">
+          <el-table :data="productDetailData.inventory_logs" stripe size="small" empty-text="暂无流水">
+            <el-table-column prop="type" label="类型" width="70">
+              <template slot-scope="s">
+                <el-tag :type="s.row.type==='in'?'success':'danger'" size="small">{{ s.row.type==='in'?'入库':'出库' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="quantity" label="数量" width="80"></el-table-column>
+            <el-table-column prop="balance" label="结存" width="80"></el-table-column>
+            <el-table-column prop="reference_type" label="来源" width="100"></el-table-column>
+            <el-table-column prop="remark" label="备注" min-width="160"></el-table-column>
+            <el-table-column prop="created_at" label="时间" width="140">{{ formatDate(s.row.created_at) }}</el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+    <div slot="footer">
+      <el-button @click="productDetailVisible=false" size="small">关闭</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Supplier Detail Dialog -->
+  <el-dialog title="供应商详情" :visible.sync="supplierDetailVisible" width="800px" :close-on-click-modal="false">
+    <div v-if="supplierDetailData">
+      <el-descriptions :column="2" border size="small" style="margin-bottom:16px">
+        <el-descriptions-item label="编码">{{ supplierDetailData.supplier.code }}</el-descriptions-item>
+        <el-descriptions-item label="名称">{{ supplierDetailData.supplier.name }}</el-descriptions-item>
+        <el-descriptions-item label="联系人">{{ supplierDetailData.supplier.contact_person || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="电话">{{ supplierDetailData.supplier.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="地址" :span="2">{{ supplierDetailData.supplier.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="应付总额">¥{{ supplierDetailData.payable.total_amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="未付金额">
+          <span :style="{color:supplierDetailData.payable.due_amount>0?'#f56c6c':'#67c23a',fontWeight:'bold'}">¥{{ supplierDetailData.payable.due_amount.toFixed(2) }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <h4 style="margin:8px 0">最近采购单</h4>
+      <el-table :data="supplierDetailData.orders" stripe size="small" empty-text="暂无采购单">
+        <el-table-column prop="order_no" label="采购单号" width="160"></el-table-column>
+        <el-table-column prop="total_amount" label="金额" width="120">
+          <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80">
+          <template slot-scope="s">
+            <el-tag :type="statusTagType(s.row.status)" size="small">{{ statusLabel(s.row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="140">{{ formatDate(s.row.created_at) }}</el-table-column>
+      </el-table>
+    </div>
+    <div slot="footer">
+      <el-button @click="supplierDetailVisible=false" size="small">关闭</el-button>
+    </div>
+  </el-dialog>
+
+  <!-- Customer Detail Dialog -->
+  <el-dialog title="客户详情" :visible.sync="customerDetailVisible" width="800px" :close-on-click-modal="false">
+    <div v-if="customerDetailData">
+      <el-descriptions :column="2" border size="small" style="margin-bottom:16px">
+        <el-descriptions-item label="编码">{{ customerDetailData.customer.code }}</el-descriptions-item>
+        <el-descriptions-item label="名称">{{ customerDetailData.customer.name }}</el-descriptions-item>
+        <el-descriptions-item label="联系人">{{ customerDetailData.customer.contact_person || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="电话">{{ customerDetailData.customer.phone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="地址" :span="2">{{ customerDetailData.customer.address || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="应收总额">¥{{ customerDetailData.receivable.total_amount.toFixed(2) }}</el-descriptions-item>
+        <el-descriptions-item label="未收金额">
+          <span :style="{color:customerDetailData.receivable.due_amount>0?'#f56c6c':'#67c23a',fontWeight:'bold'}">¥{{ customerDetailData.receivable.due_amount.toFixed(2) }}</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <h4 style="margin:8px 0">最近销售单</h4>
+      <el-table :data="customerDetailData.orders" stripe size="small" empty-text="暂无销售单">
+        <el-table-column prop="order_no" label="销售单号" width="160"></el-table-column>
+        <el-table-column prop="total_amount" label="金额" width="120">
+          <template slot-scope="s">¥{{ s.row.total_amount.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="80">
+          <template slot-scope="s">
+            <el-tag :type="soStatusTagType(s.row.status)" size="small">{{ soStatusLabel(s.row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="140">{{ formatDate(s.row.created_at) }}</el-table-column>
+      </el-table>
+    </div>
+    <div slot="footer">
+      <el-button @click="customerDetailVisible=false" size="small">关闭</el-button>
+    </div>
+  </el-dialog>
+
   <!-- User Dialog -->
   <el-dialog :title="userForm.id?'编辑用户':'新增用户'" :visible.sync="userDialogVisible" width="450px" :close-on-click-modal="false">
     <el-form :model="userForm" label-width="100px" size="small">
@@ -1318,6 +1507,24 @@ new Vue({
       logActionFilter: '',
       logTargetFilter: '',
       logLoading: false,
+
+      // Inventory Adjust
+      invAdjustVisible: false,
+      invAdjustForm: {product_id:'', quantity:0, remark:''},
+      invAdjustSaving: false,
+      invAdjustProduct: null,
+
+      // Product Detail
+      productDetailVisible: false,
+      productDetailData: null,
+
+      // Supplier Detail
+      supplierDetailVisible: false,
+      supplierDetailData: null,
+
+      // Customer Detail
+      customerDetailVisible: false,
+      customerDetailData: null,
     };
   },
   computed: {
@@ -1383,6 +1590,8 @@ new Vue({
           {key:'products', label:'商品', value:d.product_count},
           {key:'today_orders', label:'今日采购单', value:d.today_order_count},
           {key:'today_sales', label:'今日销售单', value:d.today_sales_count, color:'#67c23a'},
+          {key:'ap_amount', label:'应付未付(万)', value:(d.ap_amount/10000).toFixed(1), color:'#f56c6c'},
+          {key:'ar_amount', label:'应收未收(万)', value:(d.ar_amount/10000).toFixed(1), color:'#67c23a'},
           {key:'low_stock', label:'低库存', value:d.low_stock_count, color:'#e6a23c'},
           {key:'out_of_stock', label:'缺货', value:d.out_of_stock_count, color:'#f56c6c'},
           {key:'order_status', label:'采购单状态', value:d.order_status},
@@ -2076,6 +2285,62 @@ new Vue({
     logTargetLabel(t) {
       const map = {supplier:'供应商', customer:'客户', product:'商品', purchase_order:'采购单', sales_order:'销售单', user:'用户', expense:'费用', account_payable:'应付账款', account_receivable:'应收账款'};
       return map[t] || t;
+    },
+
+    // === INVENTORY ADJUST ===
+    async openInventoryAdjustDialog() {
+      try {
+        const res = await api.get('/products/all');
+        this.productOptions = res.data.data;
+      } catch (e) {}
+      this.invAdjustForm = {product_id:'', quantity:0, remark:''};
+      this.invAdjustProduct = null;
+      this.invAdjustVisible = true;
+    },
+    onAdjustProductChange(productId) {
+      const product = this.productOptions.find(p => p.id === productId);
+      if (product) {
+        this.invAdjustProduct = product;
+      }
+    },
+    async submitInventoryAdjust() {
+      if (!this.invAdjustForm.product_id) return this.$message.warning('请选择商品');
+      if (this.invAdjustForm.quantity === 0) return this.$message.warning('调整数量不能为0');
+      this.invAdjustSaving = true;
+      try {
+        await api.post('/inventories/adjust', this.invAdjustForm);
+        this.$message.success('库存调整成功');
+        this.invAdjustVisible = false;
+        this.fetchInventories();
+      } catch (e) { this.$message.error(e.response?.data?.error || '调整失败'); }
+      this.invAdjustSaving = false;
+    },
+
+    // === PRODUCT DETAIL ===
+    async viewProductDetail(row) {
+      try {
+        const res = await api.get('/products/'+row.id+'/detail');
+        this.productDetailData = res.data.data;
+        this.productDetailVisible = true;
+      } catch (e) { this.$message.error('获取商品详情失败'); }
+    },
+
+    // === SUPPLIER DETAIL ===
+    async viewSupplierDetail(row) {
+      try {
+        const res = await api.get('/suppliers/'+row.id+'/orders');
+        this.supplierDetailData = res.data.data;
+        this.supplierDetailVisible = true;
+      } catch (e) { this.$message.error('获取供应商详情失败'); }
+    },
+
+    // === CUSTOMER DETAIL ===
+    async viewCustomerDetail(row) {
+      try {
+        const res = await api.get('/customers/'+row.id+'/orders');
+        this.customerDetailData = res.data.data;
+        this.customerDetailVisible = true;
+      } catch (e) { this.$message.error('获取客户详情失败'); }
     },
 
     // === UTILS ===

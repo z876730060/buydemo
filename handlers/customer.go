@@ -134,3 +134,41 @@ func GetAllCustomers(c *gin.Context) {
 	database.DB.Where("status = 1").Order("name ASC").Find(&customers)
 	c.JSON(http.StatusOK, gin.H{"data": customers})
 }
+
+func GetCustomerOrders(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的ID"})
+		return
+	}
+
+	var customer models.Customer
+	if err := database.DB.First(&customer, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "客户不存在"})
+		return
+	}
+
+	var orders []models.SalesOrder
+	database.DB.Preload("Customer").Where("customer_id = ?", customer.ID).Order("id DESC").Limit(20).Find(&orders)
+
+	// Get receivable info
+	type ReceivableInfo struct {
+		TotalAmount    float64 `json:"total_amount"`
+		ReceivedAmount float64 `json:"received_amount"`
+		DueAmount      float64 `json:"due_amount"`
+	}
+	var receivable ReceivableInfo
+	database.DB.Model(&models.AccountReceivable{}).
+		Select("COALESCE(SUM(total_amount),0) as total_amount, COALESCE(SUM(received_amount),0) as received_amount, COALESCE(SUM(due_amount),0) as due_amount").
+		Where("customer_id = ?", customer.ID).
+		Scan(&receivable)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"customer":  customer,
+			"orders":    orders,
+			"receivable": receivable,
+			"order_count": len(orders),
+		},
+	})
+}

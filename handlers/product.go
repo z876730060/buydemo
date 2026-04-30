@@ -154,3 +154,82 @@ func GetCategories(c *gin.Context) {
 	database.DB.Model(&models.Product{}).Distinct("category").Where("category != ''").Pluck("category", &categories)
 	c.JSON(http.StatusOK, gin.H{"data": categories})
 }
+
+func GetProductDetail(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的ID"})
+		return
+	}
+
+	var product models.Product
+	if err := database.DB.First(&product, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "商品不存在"})
+		return
+	}
+
+	// Get inventory
+	var inv models.Inventory
+	database.DB.Where("product_id = ?", product.ID).First(&inv)
+
+	// Get recent purchase items
+	type PurchaseItemVO struct {
+		OrderNo    string  `json:"order_no"`
+		Quantity   float64 `json:"quantity"`
+		UnitPrice  float64 `json:"unit_price"`
+		Status     string  `json:"status"`
+		CreatedAt  string  `json:"created_at"`
+	}
+	var purchaseItems []PurchaseItemVO
+	database.DB.Model(&models.PurchaseOrderItem{}).
+		Select("purchase_orders.order_no, purchase_order_items.quantity, purchase_order_items.unit_price, purchase_orders.status, purchase_orders.created_at").
+		Joins("JOIN purchase_orders ON purchase_orders.id = purchase_order_items.order_id").
+		Where("purchase_order_items.product_id = ?", product.ID).
+		Order("purchase_orders.id DESC").
+		Limit(20).
+		Find(&purchaseItems)
+
+	// Get recent sales items
+	type SalesItemVO struct {
+		OrderNo   string  `json:"order_no"`
+		Quantity  float64 `json:"quantity"`
+		UnitPrice float64 `json:"unit_price"`
+		Status    string  `json:"status"`
+		CreatedAt string  `json:"created_at"`
+	}
+	var salesItems []SalesItemVO
+	database.DB.Model(&models.SalesOrderItem{}).
+		Select("sales_orders.order_no, sales_order_items.quantity, sales_order_items.unit_price, sales_orders.status, sales_orders.created_at").
+		Joins("JOIN sales_orders ON sales_orders.id = sales_order_items.order_id").
+		Where("sales_order_items.product_id = ?", product.ID).
+		Order("sales_orders.id DESC").
+		Limit(20).
+		Find(&salesItems)
+
+	// Get inventory logs
+	type LogVO struct {
+		Type      string  `json:"type"`
+		Quantity  float64 `json:"quantity"`
+		Balance   float64 `json:"balance"`
+		RefType   string  `json:"reference_type"`
+		Remark    string  `json:"remark"`
+		CreatedAt string  `json:"created_at"`
+	}
+	var logs []LogVO
+	database.DB.Model(&models.InventoryLog{}).
+		Select("type, quantity, balance, reference_type, remark, created_at").
+		Where("product_id = ?", product.ID).
+		Order("id DESC").
+		Limit(50).
+		Find(&logs)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"product":       product,
+			"inventory":     inv,
+			"purchase_items": purchaseItems,
+			"sales_items":   salesItems,
+			"inventory_logs": logs,
+		},
+	})
+}

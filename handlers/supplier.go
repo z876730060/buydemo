@@ -132,3 +132,41 @@ func GetAllSuppliers(c *gin.Context) {
 	database.DB.Where("status = 1").Order("name ASC").Find(&suppliers)
 	c.JSON(http.StatusOK, gin.H{"data": suppliers})
 }
+
+func GetSupplierOrders(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的ID"})
+		return
+	}
+
+	var supplier models.Supplier
+	if err := database.DB.First(&supplier, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "供应商不存在"})
+		return
+	}
+
+	var orders []models.PurchaseOrder
+	database.DB.Preload("Supplier").Where("supplier_id = ?", supplier.ID).Order("id DESC").Limit(20).Find(&orders)
+
+	// Get payable info
+	type PayableInfo struct {
+		TotalAmount float64 `json:"total_amount"`
+		PaidAmount  float64 `json:"paid_amount"`
+		DueAmount   float64 `json:"due_amount"`
+	}
+	var payable PayableInfo
+	database.DB.Model(&models.AccountPayable{}).
+		Select("COALESCE(SUM(total_amount),0) as total_amount, COALESCE(SUM(paid_amount),0) as paid_amount, COALESCE(SUM(due_amount),0) as due_amount").
+		Where("supplier_id = ?", supplier.ID).
+		Scan(&payable)
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"supplier": supplier,
+			"orders":   orders,
+			"payable":  payable,
+			"order_count": len(orders),
+		},
+	})
+}

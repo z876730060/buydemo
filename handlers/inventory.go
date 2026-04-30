@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/z876730060/buydemo/database"
+	"github.com/z876730060/buydemo/middlewares"
 	"github.com/z876730060/buydemo/models"
 )
 
@@ -132,6 +134,19 @@ func GetDashboardStats(c *gin.Context) {
 	var todaySalesCount int64
 	database.DB.Model(&models.SalesOrder{}).Where("created_at >= date('now')").Count(&todaySalesCount)
 
+	// Total accounts summary
+	var apAmount float64
+	database.DB.Model(&models.AccountPayable{}).
+		Select("COALESCE(SUM(due_amount),0)").
+		Where("status != 'paid'").
+		Scan(&apAmount)
+
+	var arAmount float64
+	database.DB.Model(&models.AccountReceivable{}).
+		Select("COALESCE(SUM(due_amount),0)").
+		Where("status != 'received'").
+		Scan(&arAmount)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": gin.H{
 			"supplier_count":      supplierCount,
@@ -143,6 +158,77 @@ func GetDashboardStats(c *gin.Context) {
 			"out_of_stock_count":  outOfStockCount,
 			"order_status":        statusCounts,
 			"sales_order_status":  salesStatusCounts,
+			"ap_amount":           apAmount,
+			"ar_amount":           arAmount,
 		},
 	})
+}
+
+// AdjustInventory manually adjusts inventory quantity
+func AdjustInventory(c *gin.Context) {
+	var req struct {
+		ProductID uint    `json:"product_id" binding:"required"`
+		Quantity  float64 `json:"quantity" binding:"required"` // positive = add, negative = remove
+		Remark    string  `json:"remark"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "数据格式错误: " + err.Error()})
+		return
+	}
+
+	var product models.Product
+	if err := database.DB.First(&product, req.ProductID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "商品不存在"})
+		return
+	}
+
+	if req.Quantity == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "调整数量不能为0"})
+		return
+	}
+
+	adjType := "in"
+	if req.Quantity < 0 {
+		adjType = "out"
+	}
+
+	tx := database.DB.Begin()
+
+	var inv models.Inventory
+	if err := tx.Where("product_id = ?", req.ProductID).First(&inv).Error; err != nil {
+		// Create inventory if not exists
+		if req.Quantity < 0 {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "库存不足，无法出库"})
+			return
+		}
+		inv = models.Inventory{ProductID: req.ProductID, Quantity: req.Quantity}
+		tx.Create(&inv)
+	} else {
+		if inv.Quantity+req.Quantity < 0 {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "库存不足，调整后库存为负"})
+			return
+		}
+		tx.Model(&inv).Update("quantity", inv.Quantity+req.Quantity)
+	}
+
+	// Reload to get updated balance
+	var invAfter models.Inventory
+	tx.Where("product_id = ?", req.ProductID).First(&invAfter)
+
+	// Create inventory log
+	tx.Create(&models.InventoryLog{
+		ProductID:     req.ProductID,
+		Type:          adjType,
+		Quantity:      req.Quantity,
+		Balance:       invAfter.Quantity,
+		ReferenceType: "adjust",
+		Remark:        req.Remark,
+	})
+
+	tx.Commit()
+
+	middlewares.SimpleLog(c, "adjust", "inventory", req.ProductID, "手动调整库存: "+product.Name+" 数量:"+fmt.Sprintf("%.2f", req.Quantity))
+	c.JSON(http.StatusOK, gin.H{"data": invAfter, "message": "库存调整成功"})
 }

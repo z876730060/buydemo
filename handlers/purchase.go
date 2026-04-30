@@ -254,8 +254,18 @@ func ReceiveOrder(c *gin.Context) {
 				ProductID: item.ProductID,
 				Quantity:  remaining,
 			})
+			// Set cost price on first purchase
+			tx.Model(&item.Product).Update("price", item.UnitPrice)
 		} else {
 			tx.Model(&inv).Update("quantity", inv.Quantity+remaining)
+			// Update cost price (weighted average)
+			newQty := inv.Quantity + remaining
+			if newQty > 0 {
+				oldValue := inv.Quantity * item.Product.Price
+				newValue := remaining * item.UnitPrice
+				avgPrice := (oldValue + newValue) / newQty
+				tx.Model(&item.Product).Update("price", avgPrice)
+			}
 		}
 
 		// Create inventory log
